@@ -1868,57 +1868,29 @@ def book_teacher(teacher_id):
     availability_rows = db.execute("""
         SELECT day_of_week, start_time, end_time, is_available, teaching_mode
         FROM teacher_availability
-        WHERE teacher_id = ?
+        WHERE teacher_id = ? AND is_available = 1
     """, (teacher_id,)).fetchall()
 
-    availability = {}
+    availability_blocks = {}
     for row in availability_rows:
-        # Normalize times for consistent formatting
+        day = row['day_of_week']
+        if day not in availability_blocks:
+            availability_blocks[day] = []
+
+        # Normalize times
         start_time = normalize_time(row['start_time'])
         end_time = normalize_time(row['end_time'])
         time_slot = f"{start_time} - {end_time}"
 
-        day = row['day_of_week']
-        if day not in availability:
-            availability[day] = {}
-        availability[day][time_slot] = {
-            'available': row['is_available'],
-            'mode': row['teaching_mode']
-        }
+        availability_blocks[day].append({
+            "start": start_time,
+            "end": end_time,
+            "mode": row['teaching_mode'],
+            "time_slot": time_slot
+        })
 
-    # Create availability_blocks structure
-    availability_blocks = {}
-    for day in range(7):
-        blocks = []
-        if day in availability:
-            for time_slot, details in availability[day].items():
-                if details['available']:
-                    start_time, end_time = time_slot.split(" - ")
-
-                    # Calculate duration in minutes
-                    start_minutes = int(start_time.split(':')[0]) * 60 + int(start_time.split(':')[1])
-                    end_minutes = int(end_time.split(':')[0]) * 60 + int(end_time.split(':')[1])
-                    duration = end_minutes - start_minutes
-
-                    # Generate individual 15-minute slots within this block
-                    slots = []
-                    current_time = start_minutes
-                    while current_time < end_minutes:
-                        slot_start = f"{current_time // 60:02d}:{current_time % 60:02d}"
-                        current_time += 15
-                        slot_end = f"{current_time // 60:02d}:{current_time % 60:02d}"
-                        slots.append(f"{slot_start} - {slot_end}")
-
-                    blocks.append({
-                        "start": start_time,
-                        "end": end_time,
-                        "mode": details['mode'],
-                        "duration": duration,
-                        "slots": slots
-                    })
-        availability_blocks[day] = blocks
-
-    existing_bookings = {}
+    # Get all booked time slots for the two-week period
+    booked_slots = {}
     if week_dates:
         start_date = week_dates[0].strftime("%Y-%m-%d")
         end_date = week_dates[-1].strftime("%Y-%m-%d")
@@ -1933,12 +1905,12 @@ def book_teacher(teacher_id):
 
         for row in booking_rows:
             date_str = row['booking_date']
-            if date_str not in existing_bookings:
-                existing_bookings[date_str] = {}
+            if date_str not in booked_slots:
+                booked_slots[date_str] = set()
 
-            # Normalize time slot for consistent comparison
+            # Normalize time slot
             normalized_slot = normalize_time_slot(row['time_slot'])
-            existing_bookings[date_str][normalized_slot] = True
+            booked_slots[date_str].add(normalized_slot)
 
     if request.method == "POST":
         day_of_week = request.form.get("day_of_week")
@@ -1959,34 +1931,27 @@ def book_teacher(teacher_id):
 
         # Normalize time slot consistently
         normalized_time_slot = normalize_time_slot(time_slot)
-        start_time, end_time = normalized_time_slot.split(" - ")
-
-        # Check availability
-        slot_available = availability.get(day_of_week, {}).get(normalized_time_slot, {})
-        if not slot_available or not slot_available.get('available'):
-            flash("Wybrany termin jest niedostępny", "error")
-            return redirect(url_for("book_teacher", teacher_id=teacher_id, week_offset=week_offset))
-
-        # Check mode compatibility - FIXED HYBRID MODE HANDLING
-        slot_mode = slot_available.get('mode', 'online')
-        valid_modes = []
-
-        if slot_mode == 'hybrid':
-            valid_modes = ['online', 'in_person']
-        elif slot_mode == 'both':
-            valid_modes = ['online', 'in_person']
-        else:
-            valid_modes = [slot_mode]
-
-        if lesson_mode not in valid_modes:
-            flash(
-                f"Wybrany tryb lekcji ({lesson_mode}) nie jest dostępny w tym terminie. Dostępne tryby: {', '.join(valid_modes)}",
-                "error")
-            return redirect(url_for("book_teacher", teacher_id=teacher_id, week_offset=week_offset))
 
         # Check for existing booking with normalized time slot
-        if booking_date in existing_bookings and normalized_time_slot in existing_bookings[booking_date]:
+        if booking_date in booked_slots and normalized_time_slot in booked_slots[booking_date]:
             flash("Wybrany termin jest już zajęty", "error")
+            return redirect(url_for("book_teacher", teacher_id=teacher_id, week_offset=week_offset))
+
+        # Find the availability block to validate mode
+        valid_mode = False
+        block_mode = "online"
+        if day_of_week in availability_blocks:
+            for block in availability_blocks[day_of_week]:
+                if normalize_time_slot(block["time_slot"]) == normalized_time_slot:
+                    block_mode = block["mode"]
+                    if block_mode in ['both', 'hybrid']:
+                        valid_mode = lesson_mode in ['online', 'in_person']
+                    else:
+                        valid_mode = lesson_mode == block_mode
+                    break
+
+        if not valid_mode:
+            flash(f"Wybrany tryb lekcji nie jest dostępny w tym terminie. Dostępny tryb: {block_mode}", "error")
             return redirect(url_for("book_teacher", teacher_id=teacher_id, week_offset=week_offset))
 
         try:
@@ -2000,6 +1965,7 @@ def book_teacher(teacher_id):
 
             # Create notification for the teacher
             student_username = session["username"]
+            start_time, end_time = normalized_time_slot.split(" - ")
             notification_msg = f"Nowa rezerwacja od {student_username} na {booking_date} o {start_time}-{end_time} (tryb: {'Online' if lesson_mode == 'online' else 'Stacjonarnie'})"
             db.execute("""
                 INSERT INTO notifications (user_id, sender_id, message)
@@ -2019,8 +1985,7 @@ def book_teacher(teacher_id):
     return render_template("book_teacher.html",
                            teacher=teacher,
                            availability_blocks=availability_blocks,
-                           existing_bookings=existing_bookings,
-                           time_slots=generate_time_slots(),
+                           booked_slots=booked_slots,
                            teaching_modes=TEACHING_MODES,
                            pricing=pricing,
                            timedelta=timedelta,

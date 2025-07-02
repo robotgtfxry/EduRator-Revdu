@@ -7,12 +7,17 @@
     <title>Umawianie lekcji</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        * {
+            box-sizing: border-box;
             margin: 0;
             padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: #f5f7fa;
             color: #333;
+            line-height: 1.6;
         }
 
         .booking-container {
@@ -288,18 +293,74 @@
             box-shadow: 0 4px 8px rgba(52, 152, 219, 0.3);
         }
 
+        /* UPDATED: More distinct grayed-out style for booked slots */
         .time-block.booked {
-            background-color: #ffebee !important;
-            border-color: #e53935 !important;
-            color: #e53935 !important;
-            opacity: 0.9;
+            background-color: #f0f0f0 !important;
+            border-color: #d0d0d0 !important;
+            color: #a0a0a0 !important;
             cursor: not-allowed;
+            opacity: 0.8;
+            text-decoration: line-through;
         }
 
-        .block-duration {
+        .mode-indicator {
             font-size: 12px;
             margin-top: 5px;
-            color: #666;
+            padding: 4px 8px;
+            border-radius: 15px;
+            display: inline-block;
+        }
+
+        .mode-indicator.online {
+            background-color: #e3f2fd;
+            color: #0d47a1;
+        }
+
+        .mode-indicator.in_person {
+            background-color: #e8f5e9;
+            color: #1b5e20;
+        }
+
+        .mode-indicator.both {
+            background-color: #fff3e0;
+            color: #e65100;
+        }
+
+        .mode-indicator.hybrid {
+            background-color: #f3e5f5;
+            color: #6a1b9a;
+        }
+
+        .time-block.selected .mode-indicator {
+            background-color: rgba(255,255,255,0.3);
+            color: white;
+        }
+
+        /* UPDATED: Grayed out mode indicator for booked slots */
+        .time-block.booked .mode-indicator {
+            background-color: #e0e0e0 !important;
+            color: #808080 !important;
+        }
+
+        .slot-status {
+            font-size: 11px;
+            margin-top: 3px;
+            font-weight: bold;
+        }
+
+        /* UPDATED: Grayed out status text */
+        .time-block.booked .slot-status {
+            color: #808080 !important;
+        }
+
+        .time-block.selected .slot-status {
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .no-availability {
+            padding: 10px;
+            color: #7f8c8d;
+            font-style: italic;
         }
 
         .booking-summary {
@@ -518,62 +579,6 @@
             pointer-events: none;
         }
 
-        /* Styles for mode indicators */
-        .mode-indicator {
-            font-size: 12px;
-            margin-top: 5px;
-            padding: 4px 8px;
-            border-radius: 15px;
-            display: inline-block;
-        }
-
-        .mode-indicator.online {
-            background-color: #e3f2fd;
-            color: #0d47a1;
-        }
-
-        .mode-indicator.in_person {
-            background-color: #e8f5e9;
-            color: #1b5e20;
-        }
-
-        .mode-indicator.both {
-            background-color: #fff3e0;
-            color: #e65100;
-        }
-
-        .mode-indicator.hybrid {
-            background-color: #f3e5f5;
-            color: #6a1b9a;
-        }
-
-        .time-block.selected .mode-indicator {
-            background-color: rgba(255,255,255,0.3);
-            color: white;
-        }
-
-        .time-block.booked .mode-indicator {
-            background-color: #ffcdd2 !important;
-            color: #b71c1c !important;
-        }
-
-        /* Status text for time slots */
-        .slot-status {
-            font-size: 11px;
-            margin-top: 3px;
-            font-weight: bold;
-        }
-
-        .time-block.booked .slot-status {
-            color: #b71c1c !important;
-        }
-
-        .time-block.selected .block-duration,
-        .time-block.selected .mode-indicator,
-        .time-block.selected .slot-status {
-            color: rgba(255, 255, 255, 0.8);
-        }
-
         /* Responsywność */
         @media (max-width: 1200px) {
             .booking-content {
@@ -611,6 +616,48 @@
 
             .booking-actions {
                 flex-direction: column;
+            }
+
+            .booking-header {
+                padding: 25px 15px;
+            }
+
+            .booking-header h1 {
+                font-size: 28px;
+            }
+
+            .booking-header p {
+                font-size: 16px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .teacher-info {
+                flex-direction: column;
+            }
+
+            .step {
+                padding: 0 5px;
+            }
+
+            .step-number {
+                width: 50px;
+                height: 50px;
+                font-size: 24px;
+            }
+
+            .calendar-day {
+                padding: 12px 8px;
+            }
+
+            .time-block {
+                padding: 10px;
+                font-size: 14px;
+            }
+
+            .btn {
+                padding: 14px 20px;
+                font-size: 16px;
             }
         }
     </style>
@@ -689,43 +736,48 @@
                                     {% set day_of_week = loop.index0 %}
                                     {% set day_date_str = day_date.strftime('%Y-%m-%d') %}
 
-                                    {% for block in availability_blocks.get(day_of_week, []) %}
-                                        {% set is_booked = false %}
-                                        {% for slot in block.slots %}
-                                            {% set slot_normalized = slot | replace(' ', '') | replace(':', '') | lower %}
-                                            {% if existing_bookings.get(day_date_str, {}).get(slot_normalized, false) %}
+                                    {% if day_of_week in availability_blocks %}
+                                        {% for block in availability_blocks[day_of_week] %}
+                                            {% set time_slot = block.time_slot %}
+                                            {% set normalized_slot = time_slot | replace(' ', '') | replace(':', '') | lower %}
+                                            {% set is_booked = false %}
+
+                                            {% if day_date_str in booked_slots and normalized_slot in booked_slots[day_date_str] %}
                                                 {% set is_booked = true %}
                                             {% endif %}
-                                        {% endfor %}
 
-                                        <div class="time-block {% if is_booked %}booked{% else %}available{% endif %}"
-                                             data-day="{{ day_of_week }}"
-                                             data-start="{{ block.start }}"
-                                             data-end="{{ block.end }}"
-                                             data-mode="{{ block.mode }}"
-                                             {% if is_booked %}title="Ten termin jest już zajęty"{% endif %}>
-                                            {{ block.start }} - {{ block.end }}
-                                            <div class="mode-indicator {{ block.mode }}">
-                                                {% if block.mode == 'online' %}
-                                                    <i class="fas fa-laptop"></i> Online
-                                                {% elif block.mode == 'in_person' %}
-                                                    <i class="fas fa-user"></i> Stacjonarnie
-                                                {% elif block.mode == 'hybrid' %}
-                                                    <i class="fas fa-laptop"></i>+<i class="fas fa-user"></i> Hybrydowo
-                                                {% else %}
-                                                    <i class="fas fa-laptop"></i>+<i class="fas fa-user"></i> Oba
-                                                {% endif %}
+                                            <div class="time-block
+                                                        {% if is_booked %}booked{% else %}available{% endif %}"
+                                                 data-day="{{ day_of_week }}"
+                                                 data-slot="{{ time_slot }}"
+                                                 data-mode="{{ block.mode }}"
+                                                 {% if is_booked %}title="Ten termin jest już zajęty"{% endif %}>
+                                                {{ time_slot }}
+                                                <div class="mode-indicator {{ block.mode }}">
+                                                    {% if block.mode == 'online' %}
+                                                        <i class="fas fa-laptop"></i> Online
+                                                    {% elif block.mode == 'in_person' %}
+                                                        <i class="fas fa-user"></i> Stacjonarnie
+                                                    {% elif block.mode == 'hybrid' %}
+                                                        <i class="fas fa-laptop"></i>+<i class="fas fa-user"></i> Hybrydowo
+                                                    {% else %}
+                                                        <i class="fas fa-laptop"></i>+<i class="fas fa-user"></i> Oba
+                                                    {% endif %}
+                                                </div>
+                                                <div class="slot-status">
+                                                    {% if is_booked %}
+                                                        <span>Zajęte</span>
+                                                    {% else %}
+                                                        Dostępne
+                                                    {% endif %}
+                                                </div>
                                             </div>
-                                            <div class="block-duration">{{ block.duration }} min</div>
-                                            <div class="slot-status">
-                                                {% if is_booked %}
-                                                    <span style="color: #b71c1c; font-weight: bold;">Zajęte</span>
-                                                {% else %}
-                                                    Dostępne
-                                                {% endif %}
-                                            </div>
+                                        {% endfor %}
+                                    {% else %}
+                                        <div class="no-availability">
+                                            Brak dostępnych terminów
                                         </div>
-                                    {% endfor %}
+                                    {% endif %}
                                 </div>
                             </div>
                             {% endfor %}
@@ -820,27 +872,30 @@
                 in_person: {{ pricing.price_in_person }}
             };
 
-            // Normalize time to HH:MM format
-            function normalizeTime(timeStr) {
-                if (!timeStr) return timeStr;
-                const parts = timeStr.split(':');
-                if (parts.length < 2) return timeStr;
-
-                let hours = parseInt(parts[0]);
-                let minutes = parseInt(parts[1]);
-
-                if (isNaN(hours) || isNaN(minutes)) return timeStr;
-
-                return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-            }
-
             // Normalize time slot to consistent format
             function normalizeTimeSlot(slot) {
+                if (!slot) return slot;
+
+                // Split into start and end times
                 const parts = slot.split(' - ');
                 if (parts.length !== 2) return slot;
 
-                const start = normalizeTime(parts[0]);
-                const end = normalizeTime(parts[1]);
+                // Normalize each time part
+                const normalizeTime = (timeStr) => {
+                    if (!timeStr) return timeStr;
+                    const timeParts = timeStr.split(':');
+                    if (timeParts.length < 2) return timeStr;
+
+                    let hours = parseInt(timeParts[0]);
+                    let minutes = parseInt(timeParts[1]);
+
+                    if (isNaN(hours) || isNaN(minutes)) return timeStr;
+
+                    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+                };
+
+                const start = normalizeTime(parts[0].trim());
+                const end = normalizeTime(parts[1].trim());
 
                 return `${start} - ${end}`;
             }
@@ -848,12 +903,8 @@
             // Handle time block selection
             document.addEventListener('click', function(e) {
                 const block = e.target.closest('.time-block');
-                if (!block) return;
-
-                // Prevent selection of booked blocks
-                if (block.classList.contains('booked')) {
-                    alert('Ten termin jest już zajęty. Proszę wybrać inny.');
-                    return;
+                if (!block || block.classList.contains('booked')) {
+                    return; // Ignore clicks on booked slots
                 }
 
                 try {
@@ -867,12 +918,11 @@
 
                     // Set hidden fields
                     const day = block.dataset.day;
-                    const start = block.dataset.start;
-                    const end = block.dataset.end;
+                    const slot = block.dataset.slot;
                     const mode = block.dataset.mode;
 
                     // Normalize time slot
-                    const normalizedSlot = normalizeTimeSlot(`${start} - ${end}`);
+                    const normalizedSlot = normalizeTimeSlot(slot);
                     slotInput.value = normalizedSlot;
 
                     dayInput.value = day;
