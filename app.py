@@ -241,10 +241,16 @@ def index():
     role = None
     managed_teachers = []
     unread_notifications = 0
+    user_profile_picture = None  # Dodane
 
     if "user_id" in session:
         user_id = session["user_id"]
         role = session.get("user_role", "user")
+
+        # Pobierz zdjęcie profilowe użytkownika
+        user_row = db.execute("SELECT profile_picture FROM users WHERE id = ?", (user_id,)).fetchone()
+        if user_row and user_row['profile_picture']:
+            user_profile_picture = user_row['profile_picture']
 
         if role in ["teacher", "regional_teacher"]:
             existing_pin = db.execute("SELECT * FROM pins WHERE created_by = ?", (user_id,)).fetchone()
@@ -276,7 +282,8 @@ def index():
         logged_in="user_id" in session,
         managed_teachers=managed_teachers,
         unread_notifications=unread_notifications,
-        school_subjects=SCHOOL_SUBJECTS
+        school_subjects=SCHOOL_SUBJECTS,
+        user_profile_picture=user_profile_picture  # Dodane
     )
 
 
