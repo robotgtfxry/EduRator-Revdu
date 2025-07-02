@@ -2700,4 +2700,4 @@ if __name__ == "__main__":
     # migrate_db()
     app.run(debug=True)
 
-# Michał Jaksan autor aplikacji. Wszelkie prawa zastrzeżone.
+# Michał Jaksan autor aplikacji. Wszelkie prawa zastrzeżone :).
