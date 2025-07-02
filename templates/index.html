@@ -1,0 +1,1101 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="google-site-verification" content="a0e2f3d4e5f6a7b8c9d0e1f2a3b4c5d6" />
+    <title>Mapa Pinezek</title>
+    <link href="https://api.mapbox.com/mapbox-gl-js/v3.1.0/mapbox-gl.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        #map {
+            height: 80vh;
+            width: 100%;
+            margin-bottom: 20px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+        }
+        nav {
+            background-color: #333;
+            padding: 15px;
+            margin: -20px -20px 20px -20px;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        nav .nav-left, nav .nav-right {
+            display: flex;
+            align-items: center;
+        }
+        nav a {
+            color: white;
+            text-decoration: none;
+            margin-right: 15px;
+            padding: 5px 10px;
+            border-radius: 3px;
+            transition: background-color 0.3s;
+        }
+        nav a:hover {
+            background-color: #555;
+        }
+        .crm-button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .crm-button:hover {
+            background-color: #45a049;
+            text-decoration: none;
+        }
+        .flash {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .flash.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .flash.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            font-size: 18px;
+            color: #666;
+        }
+        .error-message {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        .pins-info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .login-info {
+            background-color: #fff3cd;
+            color: #856404;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .notification-container {
+            position: relative;
+            display: inline-block;
+        }
+        .notification-icon {
+            position: relative;
+            cursor: pointer;
+            margin-left: 15px;
+        }
+        .notification-badge {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background-color: red;
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+        }
+        .notification-dropdown {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            width: 350px;
+            max-height: 400px;
+            overflow-y: auto;
+            display: none;
+            z-index: 1000;
+        }
+        .notification-dropdown.show {
+            display: block;
+        }
+        .notification-header {
+            padding: 10px 15px;
+            border-bottom: 1px solid #eee;
+            font-weight: bold;
+            background-color: #3a3a3a;
+            color: white;
+        }
+        .notification-item {
+            padding: 10px 15px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            color: black;
+            transition: all 0.3s ease;
+            opacity: 1;
+            transform: translateX(0);
+            position: relative;
+        }
+        .notification-item.unread {
+            background-color: #e6f7ff;
+            border-left: 3px solid #2196F3;
+        }
+        .notification-item.read {
+            background-color: #f9f9f9;
+            border-left: 3px solid #ddd;
+        }
+        .notification-status {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 10px;
+            padding: 2px 5px;
+            border-radius: 3px;
+        }
+        .status-unread {
+            background-color: #2196F3;
+            color: white;
+        }
+        .status-read {
+            background-color: #ddd;
+            color: #666;
+        }
+        .notification-message {
+            padding-right: 60px;
+        }
+        .notification-time {
+            font-size: 12px;
+            color: #888;
+            margin-top: 5px;
+        }
+        .notification-empty {
+            padding: 20px;
+            text-align: center;
+            color: #888;
+        }
+        .view-all {
+            display: block;
+            text-align: center;
+            padding: 10px;
+            background-color: #f8f9fa;
+            color: #007bff;
+            text-decoration: none;
+        }
+        .online-teachers-section {
+            margin: 20px 0;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 15px;
+            position: relative;
+        }
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .section-title {
+            margin: 0;
+            color: #333;
+        }
+        .view-all-link {
+            color: #2196F3;
+            text-decoration: none;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .view-all-link:hover {
+            text-decoration: underline;
+        }
+        .teachers-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .teacher-card {
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            width: calc(33.333% - 15px);
+            box-sizing: border-box;
+            position: relative;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        .teacher-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        .teacher-card .online-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: #4CAF50;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .teacher-card h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+        .teacher-card .subjects {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .teacher-card .availability {
+            font-size: 14px;
+            color: #333;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .teacher-card .modes {
+            display: flex;
+            gap: 5px;
+            margin-top: 10px;
+        }
+        .mode-badge {
+            background-color: #e0e0e0;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .mode-badge.online {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .mode-badge.in-person {
+            background-color: #2196F3;
+            color: white;
+        }
+        .teacher-card .actions {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+        }
+        .btn {
+            padding: 8px 15px;
+            border-radius: 4px;
+            text-decoration: none;
+            font-size: 14px;
+            cursor: pointer;
+            border: none;
+            transition: background-color 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+        .btn-primary {
+            background-color: #2196F3;
+            color: white;
+            flex: 1;
+        }
+        .btn-secondary {
+            background-color: #f5f5f5;
+            color: #333;
+            border: 1px solid #ddd;
+            flex: 1;
+        }
+        .btn:hover {
+            opacity: 0.9;
+        }
+        .status-offline {
+            background-color: #e74c3c;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+        }
+        .mapboxgl-popup {
+            max-width: 300px;
+            font-family: Arial, sans-serif;
+        }
+        .mapboxgl-popup-content {
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+        }
+        .mapboxgl-popup-content b {
+            color: #333;
+            font-size: 16px;
+            display: block;
+            margin-bottom: 5px;
+        }
+        .mapboxgl-popup-close-button {
+            font-size: 20px;
+            padding: 5px 10px;
+        }
+        .custom-marker {
+            background-color: #4285F4;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0 0 8px rgba(0,0,0,0.3);
+            cursor: pointer;
+        }
+        .custom-marker-inner {
+            width: 0;
+            height: 0;
+            background-color: white;
+            border-radius: 50%;
+            margin: 5px auto;
+        }
+        .token-error {
+            background-color: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            text-align: center;
+            border: 1px solid #ffcdd2;
+        }
+
+        /* Nowe style dla sekcji filtrów */
+        .filters-section {
+            margin-bottom: 20px;
+            background-color: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .filters-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .filters-title {
+            margin: 0;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .filters-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .filter-group {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .filter-group h4 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            color: #444;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+        }
+
+        .subject-filters {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 8px;
+        }
+
+        .subject-filter {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            background-color: #f5f5f5;
+            border-radius: 4px;
+            transition: all 0.3s;
+        }
+
+        .subject-filter:hover {
+            background-color: #e9e9e9;
+        }
+
+        .subject-filter input {
+            margin-right: 8px;
+            cursor: pointer;
+        }
+
+        .subject-filter label {
+            cursor: pointer;
+            flex: 1;
+            color: #333;
+        }
+
+        .subject-filter.selected {
+            background-color: #e3f2fd;
+            border-left: 3px solid #2196F3;
+        }
+
+        .filter-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .filter-btn {
+            padding: 8px 15px;
+            border-radius: 4px;
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .filter-btn:hover {
+            background-color: #0b7dda;
+        }
+
+        .filter-btn.reset {
+            background-color: #f5f5f5;
+            color: #333;
+            border: 1px solid #ddd;
+        }
+
+        .filter-btn.reset:hover {
+            background-color: #e0e0e0;
+        }
+
+        .filter-results {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: #d1ecf1;
+            color: #0c5460;
+            padding: 10px 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+
+        .filter-results .count {
+            font-weight: bold;
+        }
+
+        .filter-results .selected-subjects {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .subject-tag {
+            background-color: #2196F3;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .subject-tag .remove {
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .no-results {
+            text-align: center;
+            padding: 30px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            margin: 20px 0;
+            border: 1px dashed #ddd;
+        }
+
+        .no-results i {
+            font-size: 48px;
+            color: #6c757d;
+            margin-bottom: 15px;
+        }
+
+        /* Responsive styles for better mobile experience */
+        @media (max-width: 768px) {
+            .teacher-card {
+                width: calc(50% - 15px);
+            }
+        }
+
+        @media (max-width: 480px) {
+            .teacher-card {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="nav-left">
+            {% if logged_in %}
+                Witaj, <strong>{{ session.get('username') }}</strong> ({{ role }}) |
+                <a href="{{ url_for('index') }}">Strona główna</a>
+                <a href="{{ url_for('online_teachers') }}">Nauczyciele Online</a>
+                {% if role in ['admin', 'teacher'] %}
+                    <a href="{{ url_for('add') }}">Dodaj Pinezkę</a>
+                {% endif %}
+                {% if role == 'teacher' and teacher_has_pin %}
+                    <a href="{{ url_for('edit_pin', pin_id=session.get('assigned_pin_id')) }}">Edytuj swoją pinezkę</a>
+                {% endif %}
+                {% if role == 'admin' %}
+                    <a href="{{ url_for('users') }}">Użytkownicy</a>
+                    <a href="{{ url_for('messages') }}">Wiadomości</a>
+                {% endif %}
+                {% if role in ['teacher', 'regional_teacher'] %}
+                    <a href="{{ url_for('crm') }}" class="crm-button">
+                        <i class="fas fa-chalkboard-teacher"></i> Panel Nauczyciela
+                    </a>
+                {% endif %}
+            {% else %}
+                <a href="{{ url_for('login') }}">Logowanie</a>
+                <a href="{{ url_for('register') }}">Rejestracja</a>
+            {% endif %}
+        </div>
+
+        <div class="nav-right">
+            {% if logged_in %}
+                <div class="notification-container" id="notificationContainer">
+                    <div class="notification-icon">
+                        <i class="fas fa-bell"></i>
+                        {% if unread_notifications > 0 %}
+                            <span class="notification-badge" id="notificationBadge">{{ unread_notifications }}</span>
+                        {% endif %}
+                    </div>
+                    <div class="notification-dropdown" id="notificationDropdown">
+                        <div class="notification-header">Powiadomienia</div>
+                        <div id="notificationList"></div>
+                        <a href="#" class="view-all">Zobacz wszystkie</a>
+                    </div>
+                </div>
+                <a href="{{ url_for('logout') }}">Wyloguj</a>
+            {% endif %}
+        </div>
+    </nav>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="flash {{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <h1>Mapa Pinezek</h1>
+
+    {% if not logged_in %}
+    <div class="login-info">
+        Aby dodawać lub edytować pinezki, <a href="{{ url_for('login') }}">zaloguj się</a>.
+    </div>
+    {% endif %}
+
+    <!-- Sekcja filtrów -->
+    <div class="filters-section">
+        <div class="filters-header">
+            <h3 class="filters-title"><i class="fas fa-filter"></i> Filtruj Pinezki</h3>
+        </div>
+
+        <div class="filters-container">
+            <div class="filter-group">
+                <h4>Przedmioty</h4>
+                <div class="subject-filters">
+                    {% for subject in school_subjects %}
+                    <div class="subject-filter" data-subject="{{ subject }}">
+                        <input type="checkbox" id="subject-{{ loop.index }}" name="subject" value="{{ subject }}">
+                        <label for="subject-{{ loop.index }}">{{ subject }}</label>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div class="filter-buttons">
+                    <button class="filter-btn" id="applyFilters">
+                        <i class="fas fa-check"></i> Zastosuj filtry
+                    </button>
+                    <button class="filter-btn reset" id="resetFilters">
+                        <i class="fas fa-redo"></i> Wyczyść filtry
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Wyniki filtrowania -->
+    <div class="filter-results">
+        <div>
+            <span class="count">Załadowano <span id="totalPins">{{ pins|length }}</span> pinezek</span>
+            <span> | Widocznych: <span id="visiblePins">{{ pins|length }}</span></span>
+        </div>
+        <div class="selected-subjects" id="selectedSubjects">
+            <!-- Tutaj będą wyświetlane wybrane przedmioty -->
+        </div>
+    </div>
+
+    <div class="online-teachers-section">
+        <div class="section-header">
+            <h2 class="section-title"><i class="fas fa-chalkboard-teacher"></i> Nauczyciele Online</h2>
+            <a href="{{ url_for('online_teachers') }}" class="view-all-link">
+                Zobacz wszystkich <i class="fas fa-arrow-right"></i>
+            </a>
+        </div>
+
+        <div class="teachers-list">
+            {% for teacher in online_teachers %}
+            <div class="teacher-card">
+                {% if teacher.is_online %}
+                    <div class="online-badge">
+                        <i class="fas fa-circle"></i> Online
+                    </div>
+                {% else %}
+                    <div class="online-badge status-offline">
+                        <i class="fas fa-circle"></i> Offline
+                    </div>
+                {% endif %}
+
+                <h3>{{ teacher.first_name }} {{ teacher.last_name }}</h3>
+
+                <div class="subjects">
+                    <i class="fas fa-book"></i> {{ teacher.subjects }}
+                </div>
+
+                <div class="availability">
+                    <i class="fas fa-clock"></i> Dostępność: {{ teacher.availability_hours }}h/dzień
+                </div>
+
+                <div class="modes">
+                    {% if 'online' in teacher.teaching_modes %}
+                    <span class="mode-badge online">
+                        <i class="fas fa-laptop"></i> Online
+                    </span>
+                    {% endif %}
+                    {% if 'in_person' in teacher.teaching_modes %}
+                    <span class="mode-badge in-person">
+                        <i class="fas fa-user"></i> Stacjonarnie
+                    </span>
+                    {% endif %}
+                </div>
+
+                <div class="actions">
+                    <a href="{{ url_for('teacher_profile', teacher_id=teacher.id) }}" class="btn btn-primary">
+                        <i class="fas fa-user"></i> Profil
+                    </a>
+                    {% if teacher.is_online %}
+                        <a href="{{ url_for('book_teacher', teacher_id=teacher.id) }}" class="btn btn-secondary">
+                            <i class="fas fa-calendar-check"></i> Umów
+                        </a>
+                    {% else %}
+                        <button class="btn btn-secondary" disabled>
+                            <i class="fas fa-calendar-times"></i> Niedostępny
+                        </button>
+                    {% endif %}
+                </div>
+            </div>
+            {% else %}
+            <p>Brak nauczycieli online w tym momencie.</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="pins-info">
+        Załadowano {{ pins|length }} pinezek na mapę
+    </div>
+
+    <div id="loading" class="loading">Ładowanie mapy...</div>
+    <div id="map" style="display: none;"></div>
+    <div id="noResults" class="no-results" style="display: none;">
+        <i class="fas fa-map-marked-alt"></i>
+        <h3>Brak pinezek spełniających kryteria wyszukiwania</h3>
+        <p>Spróbuj wybrać inne przedmioty lub wyczyść filtry, aby zobaczyć wszystkie pinezki.</p>
+    </div>
+    <div id="token-error" class="token-error" style="display: none;">
+        <h3>Błąd tokenu Mapbox!</h3>
+    </div>
+    <div id="error" class="error-message" style="display: none;"></div>
+
+    <script src="https://api.mapbox.com/mapbox-gl-js/v3.1.0/mapbox-gl.js"></script>
+    <script>
+        mapboxgl.accessToken = 'pk.eyJ1IjoiYWxla3NhbmRlci1yZXZkdSIsImEiOiJjbWMzaDY2cjUwNGlxMmlxdGtwYXN0MmltIn0.-ujQZPHxKvR59tV2z3EKPA';
+
+        // Dane pinezek z serwera
+        const pins = {{ pins|tojson|safe }};
+        let markers = []; // Przechowuje wszystkie markery
+        let map; // Globalna referencja do mapy
+
+        // Funkcja inicjalizująca mapę
+        function initMap() {
+            if (!mapboxgl.accessToken || mapboxgl.accessToken === 'TWÓJ_MAPBOX_ACCESS_TOKEN') {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('token-error').style.display = 'block';
+                return;
+            }
+
+            try {
+                map = new mapboxgl.Map({
+                    container: 'map',
+                    style: 'mapbox://styles/aleksander-revdu/cmc3i09o200jb01qy4ami1ei7',
+                    center: [19.145136, 51.919438],
+                    zoom: 5
+                });
+
+                map.addControl(new mapboxgl.NavigationControl());
+
+                map.on('load', () => {
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('map').style.display = 'block';
+
+                    // Aktualizacja rozmiaru mapy po załadowaniu
+                    setTimeout(() => map.resize(), 100);
+
+                    // Tworzenie markerów
+                    createMarkers();
+                });
+
+                map.on('error', (e) => {
+                    console.error('Błąd Mapbox:', e.error);
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('error').style.display = 'block';
+                    document.getElementById('error').innerHTML = 'Błąd podczas ładowania mapy: ' + e.error.message;
+                });
+
+            } catch (error) {
+                console.error('Błąd podczas inicjalizacji mapy:', error);
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error').innerHTML = 'Błąd podczas ładowania mapy: ' + error.message;
+            }
+        }
+
+        // Funkcja tworząca markery na mapie
+        function createMarkers() {
+            markers = [];
+
+            pins.forEach(pin => {
+                if (pin.lat && pin.lng && !isNaN(pin.lat) && !isNaN(pin.lng)) {
+                    const el = document.createElement('div');
+                    el.className = 'custom-marker';
+                    el.style.backgroundColor = pin.color;  // Kolor pinezki
+
+                    const inner = document.createElement('div');
+                    inner.className = 'custom-marker-inner';
+                    el.appendChild(inner);
+
+                    const marker = new mapboxgl.Marker(el)
+                        .setLngLat([pin.lng, pin.lat])
+                        .addTo(map);
+
+                    const popup = new mapboxgl.Popup({ offset: 25 })
+                        .setHTML(`
+                            <div>
+                                <b>${pin.title || 'Brak tytułu'}</b>
+                                <em>${pin.city || 'Brak miasta'}, ${pin.region || 'Brak regionu'}</em>
+                                <small>${pin.address || 'Brak adresu'}</small>
+                                ${pin.first_subject ? `<div style="margin-top:5px;color:${pin.color};font-weight:bold">${pin.first_subject}</div>` : ''}
+                                <a href="/pin/${pin.id}" style="color: #007cba; text-decoration: none; font-weight: bold; display: block; margin-top: 10px;">
+                                    Zobacz szczegóły →
+                                </a>
+                            </div>
+                        `);
+
+                    marker.setPopup(popup);
+
+                    // Dodajemy dane pinezki do markera
+                    marker.pinData = pin;
+                    markers.push(marker);
+                }
+            });
+
+            // Aktualizacja licznika widocznych pinezek
+            updateVisiblePinsCount();
+        }
+
+        // Funkcja filtrująca pinezki na podstawie wybranych przedmiotów
+        function filterPinsBySubjects(selectedSubjects) {
+            if (selectedSubjects.length === 0) {
+                // Brak wybranych przedmiotów - pokazujemy wszystkie pinezki
+                markers.forEach(marker => {
+                    marker.getElement().style.display = 'block';
+                });
+                document.getElementById('noResults').style.display = 'none';
+                document.getElementById('map').style.display = 'block';
+                return;
+            }
+
+            let visibleCount = 0;
+
+            markers.forEach(marker => {
+                const pinSubjects = marker.pinData.subjects ?
+                    marker.pinData.subjects.split(',').map(s => s.trim()) : [];
+
+                // Sprawdzamy, czy pinezka ma przynajmniej jeden z wybranych przedmiotów
+                const hasSelectedSubject = selectedSubjects.some(subject =>
+                    pinSubjects.includes(subject)
+                );
+
+                if (hasSelectedSubject) {
+                    marker.getElement().style.display = 'block';
+                    visibleCount++;
+                } else {
+                    marker.getElement().style.display = 'none';
+
+                    // Zamykamy popup, jeśli był otwarty
+                    if (marker.getPopup().isOpen()) {
+                        marker.getPopup().remove();
+                    }
+                }
+            });
+
+            // Aktualizacja widoku w zależności od liczby widocznych pinezek
+            if (visibleCount > 0) {
+                document.getElementById('noResults').style.display = 'none';
+                document.getElementById('map').style.display = 'block';
+            } else {
+                document.getElementById('noResults').style.display = 'block';
+                document.getElementById('map').style.display = 'none';
+            }
+
+            // Aktualizacja licznika widocznych pinezek
+            document.getElementById('visiblePins').textContent = visibleCount;
+        }
+
+        // Funkcja aktualizująca liczbę widocznych pinezek
+        function updateVisiblePinsCount() {
+            const visibleMarkers = markers.filter(marker =>
+                marker.getElement().style.display !== 'none'
+            );
+
+            document.getElementById('visiblePins').textContent = visibleMarkers.length;
+        }
+
+        // Funkcja aktualizująca wyświetlane wybrane przedmioty
+        function updateSelectedSubjectsDisplay(selectedSubjects) {
+            const container = document.getElementById('selectedSubjects');
+            container.innerHTML = '';
+
+            if (selectedSubjects.length > 0) {
+                selectedSubjects.forEach(subject => {
+                    const tag = document.createElement('div');
+                    tag.className = 'subject-tag';
+                    tag.innerHTML = `
+                        ${subject}
+                        <span class="remove" data-subject="${subject}">×</span>
+                    `;
+                    container.appendChild(tag);
+                });
+            }
+        }
+
+        // Funkcja ładująca powiadomienia
+        function loadNotifications() {
+            fetch('/api/notifications')
+                .then(response => response.json())
+                .then(notifications => {
+                    const container = document.getElementById('notificationList');
+                    container.innerHTML = '';
+
+                    if (notifications.length === 0) {
+                        container.innerHTML = '<div class="notification-empty">Brak powiadomień</div>';
+                        return;
+                    }
+
+                    notifications.forEach(notif => {
+                        const isRead = notif.is_read;
+                        const item = document.createElement('div');
+                        item.className = `notification-item ${isRead ? 'read' : 'unread'}`;
+                        item.dataset.id = notif.id;
+
+                        item.innerHTML = `
+                            <div class="notification-status ${isRead ? 'status-read' : 'status-unread'}">
+                                ${isRead ? 'Przeczytane' : 'Nowe'}
+                            </div>
+                            <div class="notification-message">${notif.message}</div>
+                            <div class="notification-time">${new Date(notif.created_at).toLocaleString()}</div>
+                        `;
+
+                        if (!isRead) {
+                            item.addEventListener('click', function() {
+                                markNotificationRead(notif.id, item);
+                            });
+                        }
+
+                        container.appendChild(item);
+                    });
+                });
+        }
+
+        // Funkcja oznaczająca powiadomienie jako przeczytane
+        function markNotificationRead(notificationId, element) {
+            fetch(`/api/mark_notification_read/${notificationId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    element.classList.remove('unread');
+                    element.classList.add('read');
+                    element.querySelector('.notification-status').classList.remove('status-unread');
+                    element.querySelector('.notification-status').classList.add('status-read');
+                    element.querySelector('.notification-status').textContent = 'Przeczytane';
+
+                    // Aktualizuj licznik nieprzeczytanych
+                    const badge = document.getElementById('notificationBadge');
+                    if (badge) {
+                        const newCount = parseInt(badge.textContent) - 1;
+                        if (newCount > 0) {
+                            badge.textContent = newCount;
+                        } else {
+                            badge.style.display = 'none';
+                        }
+                    }
+                }
+            });
+        }
+
+        // Obsługa zdarzeń po załadowaniu DOM
+        document.addEventListener('DOMContentLoaded', function() {
+            // Inicjalizacja mapy
+            initMap();
+
+            // Obsługa przycisku "Zastosuj filtry"
+            document.getElementById('applyFilters').addEventListener('click', function() {
+                const selectedCheckboxes = document.querySelectorAll('.subject-filters input[type="checkbox"]:checked');
+                const selectedSubjects = Array.from(selectedCheckboxes).map(checkbox => checkbox.value);
+
+                // Aktualizacja klas dla wybranych filtrów
+                document.querySelectorAll('.subject-filter').forEach(filter => {
+                    filter.classList.remove('selected');
+                });
+
+                selectedCheckboxes.forEach(checkbox => {
+                    checkbox.closest('.subject-filter').classList.add('selected');
+                });
+
+                // Filtrowanie pinezek
+                filterPinsBySubjects(selectedSubjects);
+
+                // Aktualizacja wyświetlania wybranych przedmiotów
+                updateSelectedSubjectsDisplay(selectedSubjects);
+            });
+
+            // Obsługa przycisku "Wyczyść filtry"
+            document.getElementById('resetFilters').addEventListener('click', function() {
+                // Resetowanie checkboxów
+                document.querySelectorAll('.subject-filters input[type="checkbox"]').forEach(checkbox => {
+                    checkbox.checked = false;
+                });
+
+                // Usuwanie klas "selected"
+                document.querySelectorAll('.subject-filter').forEach(filter => {
+                    filter.classList.remove('selected');
+                });
+
+                // Resetowanie widoku
+                filterPinsBySubjects([]);
+                updateSelectedSubjectsDisplay([]);
+
+                // Aktualizacja licznika
+                document.getElementById('visiblePins').textContent = markers.length;
+            });
+
+            // Obsługa usuwania pojedynczego filtra
+            document.addEventListener('click', function(e) {
+                if (e.target.classList.contains('remove')) {
+                    const subjectToRemove = e.target.dataset.subject;
+
+                    // Znajdź i odznacz checkbox dla tego przedmiotu
+                    const checkbox = document.querySelector(`input[value="${subjectToRemove}"]`);
+                    if (checkbox) {
+                        checkbox.checked = false;
+                        checkbox.closest('.subject-filter').classList.remove('selected');
+                    }
+
+                    // Ponowne zastosowanie filtrów
+                    document.getElementById('applyFilters').click();
+                }
+            });
+
+            // Inicjalizacja widoku
+            updateSelectedSubjectsDisplay([]);
+
+            // Ładowanie powiadomień
+            loadNotifications();
+
+            // Obsługa kliknięcia ikony dzwonka
+            document.querySelector('.notification-icon').addEventListener('click', function() {
+                const dropdown = document.getElementById('notificationDropdown');
+                dropdown.classList.toggle('show');
+
+                // Odśwież powiadomienia przy otwarciu
+                if (dropdown.classList.contains('show')) {
+                    loadNotifications();
+                }
+            });
+
+            // Zamknięcie dropdown po kliknięciu poza
+            document.addEventListener('click', function(event) {
+                const notificationContainer = document.getElementById('notificationContainer');
+                if (!notificationContainer.contains(event.target)) {
+                    document.getElementById('notificationDropdown').classList.remove('show');
+                }
+            });
+        });
+
+        // Obsługa zmiany rozmiaru okna dla mapy
+        window.addEventListener('resize', function() {
+            if (map) setTimeout(() => map.resize(), 100);
+        });
+    </script>
+</body>
+</html>
+<!--Michał Jaksan autor aplikacji. Wszelkie prawa zastrzeżone.-->

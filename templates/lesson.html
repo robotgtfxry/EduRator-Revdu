@@ -1,0 +1,287 @@
+<!--templates/lesson.html-->
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Twoja lekcja</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            padding: 20px;
+        }
+        .lesson-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            padding: 30px;
+        }
+        .header-section {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #e9ecef;
+            padding-bottom: 20px;
+        }
+        .timer-section {
+            background-color: #e8f4f8;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .timer {
+            font-size: 2.5rem;
+            font-weight: bold;
+        }
+        .timer-before {
+            color: #0d6efd; /* Niebieski - przed lekcją */
+        }
+        .timer-during {
+            color: #dc3545; /* Czerwony - trwająca lekcja */
+        }
+        .timer-ended {
+            color: #6c757d; /* Szary - po lekcji */
+        }
+        .details-card {
+            margin-bottom: 30px;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .card-header {
+            background-color: #0d6efd;
+            color: white;
+            font-weight: bold;
+        }
+        .status-card {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        .notes-section {
+            margin-top: 30px;
+        }
+        .status-badge {
+            font-size: 1.1rem;
+            padding: 8px 15px;
+        }
+        .btn-status {
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="lesson-container">
+        <div class="header-section">
+            <h1>Twoja lekcja</h1>
+            <p class="lead">Zarządzaj swoją nadchodzącą lekcją</p>
+        </div>
+
+        <div class="timer-section">
+            <h3 id="timer-status">Do rozpoczęcia lekcji pozostało:</h3>
+            <div class="timer timer-before" id="timer">{{ time_remaining }}</div>
+        </div>
+
+        <div class="details-card card">
+            <div class="card-header">Szczegóły lekcji</div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <h5>Nauczyciel</h5>
+                        <p>{{ booking.teacher_name }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h5>Data i godzina</h5>
+                        <p>{{ booking.booking_date }} o {{ booking.time_slot }}</p>
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <h5>Tryb lekcji</h5>
+                        <p>{{ "Online" if booking.lesson_mode == "online" else "Stacjonarnie" }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h5>Lokalizacja</h5>
+                        <p>{{ location }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="status-card">
+            <h3>Status lekcji</h3>
+            <div class="d-flex align-items-center mb-3">
+                <span class="status-badge badge
+                    {% if booking.status == 'scheduled' %}bg-primary
+                    {% elif booking.status == 'completed' %}bg-success
+                    {% elif booking.status == 'cancelled' %}bg-danger
+                    {% else %}bg-secondary{% endif %}">
+                    {{ booking.status | capitalize }}
+                </span>
+            </div>
+
+            {% if booking.status == 'scheduled' %}
+            <div class="mb-3">
+                <button class="btn btn-danger btn-status" id="cancelLesson">
+                    <i class="fas fa-times-circle"></i> Odwołaj lekcję
+                </button>
+            </div>
+            {% endif %}
+
+            {% if booking.status == 'cancelled' and booking.cancellation_reason %}
+            <div class="alert alert-warning">
+                <strong>Powód odwołania:</strong> {{ booking.cancellation_reason }}
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="notes-section">
+            <h3>Notatki do lekcji</h3>
+            <div class="mb-3">
+                <textarea class="form-control" id="lessonNotes" rows="4"
+                    placeholder="Dodaj swoje notatki dotyczące lekcji...">{{ booking.notes or '' }}</textarea>
+            </div>
+            <button class="btn btn-primary" id="saveNotes">
+                <i class="fas fa-save"></i> Zapisz notatki
+            </button>
+        </div>
+    </div>
+
+    <div class="notification alert alert-info" id="notification">
+        <!-- Notification content will be added by JavaScript -->
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+    <script>
+        const bookingId = {{ booking.id }};
+        const lessonStart = "{{ booking.booking_date }}T{{ booking.time_slot.split(' - ')[0] }}:00";
+        const lessonEnd = "{{ booking.booking_date }}T{{ booking.time_slot.split(' - ')[1] }}:00";
+        let notificationShown10 = false;
+        let notificationShown5 = false;
+
+        function updateTimer() {
+            const now = new Date();
+            const startTime = new Date(lessonStart);
+            const endTime = new Date(lessonEnd);
+            const diffToStart = startTime - now;
+            const diffToEnd = endTime - now;
+            const timerElement = $("#timer");
+
+            if (diffToStart > 0) {
+                const hours = Math.floor(diffToStart / (1000 * 60 * 60));
+                const minutes = Math.floor((diffToStart % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((diffToStart % (1000 * 60)) / 1000);
+
+                $("#timer-status").text("Do rozpoczęcia lekcji pozostało:");
+                timerElement.text(`${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+                timerElement.removeClass("timer-during timer-ended").addClass("timer-before");
+
+                if (diffToStart <= 600000 && !notificationShown10) {
+                    showNotification("Lekcja za 10 minut!");
+                    notificationShown10 = true;
+                }
+
+                if (diffToStart <= 300000 && !notificationShown5) {
+                    showNotification("Lekcja za 5 minut!");
+                    notificationShown5 = true;
+                }
+            }
+            else if (diffToEnd > 0) {
+                const hours = Math.floor(diffToEnd / (1000 * 60 * 60));
+                const minutes = Math.floor((diffToEnd % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((diffToEnd % (1000 * 60)) / 1000);
+
+                $("#timer-status").text("Lekcja trwa, do końca pozostało:");
+                timerElement.text(`${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+                timerElement.removeClass("timer-before timer-ended").addClass("timer-during");
+            }
+            else {
+                $("#timer-status").text("Lekcja się zakończyła");
+                timerElement.text("");
+                timerElement.removeClass("timer-before timer-during").addClass("timer-ended");
+            }
+
+            if (diffToEnd > 0) {
+                setTimeout(updateTimer, 1000);
+            }
+        }
+
+        function showNotification(message) {
+            $("#notification").text(message).fadeIn();
+            setTimeout(() => {
+                $("#notification").fadeOut();
+            }, 5000);
+
+            if ("Notification" in window) {
+                if (Notification.permission === "granted") {
+                    new Notification(message);
+                } else if (Notification.permission !== "denied") {
+                    Notification.requestPermission().then(permission => {
+                        if (permission === "granted") {
+                            new Notification(message);
+                        }
+                    });
+                }
+            }
+        }
+
+        $("#cancelLesson").click(function() {
+            const reason = prompt("Proszę podać powód odwołania lekcji:");
+            if (reason) {
+                $.ajax({
+                    url: "/api/update_lesson_status",
+                    method: "POST",
+                    contentType: "application/json",
+                    data: JSON.stringify({
+                        booking_id: bookingId,
+                        status: "cancelled",
+                        reason: reason
+                    }),
+                    success: function() {
+                        location.reload();
+                    },
+                    error: function() {
+                        alert("Wystąpił błąd podczas aktualizacji statusu lekcji");
+                    }
+                });
+            }
+        });
+
+        $("#saveNotes").click(function() {
+            const notes = $("#lessonNotes").val();
+            $.ajax({
+                url: "/api/update_lesson_notes",
+                method: "POST",
+                contentType: "application/json",
+                data: JSON.stringify({
+                    booking_id: bookingId,
+                    notes: notes
+                }),
+                success: function() {
+                    showNotification("Notatki zostały zapisane");
+                },
+                error: function() {
+                    alert("Wystąpił błąd podczas zapisywania notatek");
+                }
+            });
+        });
+
+        updateTimer();
+    </script>
+</body>
+</html>

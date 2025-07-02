@@ -1,0 +1,512 @@
+<!--templates/crm.html-->
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRM Nauczyciela</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { padding: 20px; background-color: #f8f9fa; }
+        .container { background-color: white; border-radius: 10px; box-shadow: 0 0 20px rgba(0,0,0,0.1); padding: 30px; }
+        .notification-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background-color: #dc3545;
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+        }
+        .upcoming-lessons {
+            margin-bottom: 30px;
+        }
+        .list-group-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .status-badge {
+            font-size: 0.8rem;
+        }
+        .completed {
+            text-decoration: line-through;
+            opacity: 0.7;
+        }
+        .availability-block {
+            margin-bottom: 15px;
+            border-left: 4px solid #0d6efd;
+            border-radius: 4px;
+        }
+        .mode-online { border-left-color: #0d6efd; }
+        .mode-in_person { border-left-color: #198754; }
+        .mode-hybrid { border-left-color: #ffc107; }
+        .block-header {
+            background-color: #f8f9fa;
+            padding: 8px 15px;
+            border-bottom: 1px solid #dee2e6;
+            font-weight: 500;
+        }
+        .block-body {
+            padding: 15px;
+        }
+        .day-label {
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        .time-range {
+            font-size: 1.1rem;
+            margin-bottom: 5px;
+        }
+        .mode-badge {
+            font-size: 0.85rem;
+            padding: 4px 8px;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 30px;
+            color: #6c757d;
+        }
+        .empty-state i {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            color: #dee2e6;
+        }
+        .btn-save {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>CRM Nauczyciela</h2>
+            <div class="d-flex gap-2">
+                <a href="{{ url_for('crm_register') }}" class="btn btn-success position-relative">
+                    <i class="fas fa-user-plus"></i> Zarejestruj klienta
+                </a>
+                <a href="{{ url_for('index') }}" class="btn btn-primary position-relative">
+                    <i class="fas fa-home"></i> Strona główna
+                </a>
+                <a href="{{ url_for('logout') }}" class="btn btn-outline-danger">
+                    <i class="fas fa-sign-out-alt"></i> Wyloguj
+                </a>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <i class="fas fa-money-bill-wave"></i> Twój cennik
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h5>Lekcja online</h5>
+                                <p class="fs-4">{{ pricing.price_online | default(80.0) }} zł/h</p>
+                            </div>
+                            <div>
+                                <h5>Lekcja stacjonarna</h5>
+                                <p class="fs-4">{{ pricing.price_in_person | default(100.0) }} zł/h</p>
+                            </div>
+                        </div>
+                        <a href="{{ url_for('crm_pricing') }}" class="btn btn-outline-primary w-100 mt-2">
+                            <i class="fas fa-edit"></i> Edytuj cennik
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-info text-white">
+                        <i class="fas fa-users"></i> Twoi uczniowie
+                    </div>
+                    <div class="card-body">
+                        {% if managed_teachers %}
+                            <ul class="list-group">
+                                {% for teacher in managed_teachers %}
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <strong>{{ teacher['username'] }}</strong>
+                                        <div class="text-muted small">{{ teacher['email'] }}</div>
+                                    </div>
+                                    <span class="badge bg-primary">{{ teacher['voivodeship'] }}</span>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <p class="text-center text-muted">Brak przypisanych uczniów</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Nadchodzące lekcje -->
+        <h3><i class="fas fa-calendar-alt"></i> Nadchodzące lekcje</h3>
+        <div id="lessons" class="mb-5 upcoming-lessons">
+            <p class="text-center">Ładowanie danych...</p>
+        </div>
+
+        <!-- Kalendarz dostępności -->
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <i class="fas fa-calendar-check"></i> Kalendarz dostępności
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h4>Zarządzaj swoją dostępnością</h4>
+                    <button id="add-availability" class="btn btn-success">
+                        <i class="fas fa-plus"></i> Dodaj blok czasowy
+                    </button>
+                </div>
+
+                <div id="availability-container">
+                    <!-- Existing availability blocks will be added here -->
+                    <div class="empty-state">
+                        <i class="fas fa-calendar-plus"></i>
+                        <h5>Brak dodanych bloków czasowych</h5>
+                        <p>Dodaj swoje godziny dostępności, aby uczniowie mogli rezerwować lekcje</p>
+                    </div>
+                </div>
+
+                <button id="save-availability" class="btn btn-primary btn-lg w-100 btn-save">
+                    <i class="fas fa-save"></i> Zapisz dostępność
+                </button>
+            </div>
+        </div>
+
+        <!-- Availability block template -->
+        <template id="availability-block-template">
+            <div class="availability-block card mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center block-header">
+                    <span>Blok czasowy</span>
+                    <button class="btn btn-sm btn-danger delete-block">
+                        <i class="fas fa-trash"></i> Usuń
+                    </button>
+                </div>
+                <div class="card-body block-body">
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label fw-bold">Dzień tygodnia</label>
+                            <select class="form-select day-select">
+                                <option value="0">Poniedziałek</option>
+                                <option value="1">Wtorek</option>
+                                <option value="2">Środa</option>
+                                <option value="3">Czwartek</option>
+                                <option value="4">Piątek</option>
+                                <option value="5">Sobota</option>
+                                <option value="6">Niedziela</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label fw-bold">Godzina rozpoczęcia</label>
+                            <input type="time" class="form-control start-time" step="300">
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label fw-bold">Godzina zakończenia</label>
+                            <input type="time" class="form-control end-time" step="300">
+                        </div>
+                        <div class="col-md-2 mb-3">
+                            <label class="form-label fw-bold">Tryb lekcji</label>
+                            <select class="form-select mode-select">
+                                <option value="online">Online</option>
+                                <option value="in_person">Stacjonarnie</option>
+                                <option value="hybrid">Hybrydowo</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </template>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // DOM elements
+            const availabilityContainer = document.getElementById('availability-container');
+            const addButton = document.getElementById('add-availability');
+            const saveButton = document.getElementById('save-availability');
+            const blockTemplate = document.getElementById('availability-block-template');
+
+            // Load existing availability blocks
+            function loadAvailability() {
+                fetch('/api/crm/availability')
+                    .then(response => response.json())
+                    .then(blocks => {
+                        if (blocks.error) {
+                            console.error('Error loading availability:', blocks.error);
+                            return;
+                        }
+
+                        availabilityContainer.innerHTML = '';
+
+                        if (blocks.length === 0) {
+                            availabilityContainer.innerHTML = `
+                                <div class="empty-state">
+                                    <i class="fas fa-calendar-plus"></i>
+                                    <h5>Brak dodanych bloków czasowych</h5>
+                                    <p>Dodaj swoje godziny dostępności, aby uczniowie mogli rezerwować lekcje</p>
+                                </div>
+                            `;
+                            return;
+                        }
+
+                        blocks.forEach(block => {
+                            addAvailabilityBlock(block);
+                        });
+                    })
+                    .catch(error => {
+                        console.error('Error loading availability:', error);
+                        availabilityContainer.innerHTML = `
+                            <div class="alert alert-danger">
+                                Wystąpił błąd podczas ładowania dostępności. Spróbuj ponownie.
+                            </div>
+                        `;
+                    });
+            }
+
+            // Add a new availability block
+            function addAvailabilityBlock(data = {}) {
+                // Remove empty state if present
+                if (availabilityContainer.querySelector('.empty-state')) {
+                    availabilityContainer.innerHTML = '';
+                }
+
+                const clone = blockTemplate.content.cloneNode(true);
+                const block = clone.querySelector('.availability-block');
+
+                // Set values if data is provided
+                if (data.day_of_week !== undefined) {
+                    block.querySelector('.day-select').value = data.day_of_week;
+                }
+
+                if (data.start_time) {
+                    block.querySelector('.start-time').value = data.start_time;
+                }
+
+                if (data.end_time) {
+                    block.querySelector('.end-time').value = data.end_time;
+                }
+
+                if (data.teaching_mode) {
+                    block.querySelector('.mode-select').value = data.teaching_mode;
+                }
+
+                if (data.id) {
+                    block.dataset.id = data.id;
+                }
+
+                // Add delete functionality
+                block.querySelector('.delete-block').addEventListener('click', function() {
+                    const blockId = block.dataset.id;
+                    if (blockId) {
+                        // Delete from server
+                        fetch(`/api/crm/availability/${blockId}`, { method: 'DELETE' })
+                            .then(response => response.json())
+                            .then(result => {
+                                if (result.success) {
+                                    block.remove();
+                                    // Show empty state if no blocks left
+                                    if (availabilityContainer.children.length === 0) {
+                                        availabilityContainer.innerHTML = `
+                                            <div class="empty-state">
+                                                <i class="fas fa-calendar-plus"></i>
+                                                <h5>Brak dodanych bloków czasowych</h5>
+                                                <p>Dodaj swoje godziny dostępności, aby uczniowie mogli rezerwować lekcje</p>
+                                            </div>
+                                        `;
+                                    }
+                                }
+                            });
+                    } else {
+                        // Remove new block that hasn't been saved
+                        block.remove();
+                        // Show empty state if no blocks left
+                        if (availabilityContainer.children.length === 0) {
+                            availabilityContainer.innerHTML = `
+                                <div class="empty-state">
+                                    <i class="fas fa-calendar-plus"></i>
+                                    <h5>Brak dodanych bloków czasowych</h5>
+                                    <p>Dodaj swoje godziny dostępności, aby uczniowie mogli rezerwować lekcje</p>
+                                </div>
+                            `;
+                        }
+                    }
+                });
+
+                // Add validation for time inputs
+                const startTimeInput = block.querySelector('.start-time');
+                const endTimeInput = block.querySelector('.end-time');
+
+                function validateTimes() {
+                    const startTime = startTimeInput.value;
+                    const endTime = endTimeInput.value;
+
+                    if (startTime && endTime && startTime >= endTime) {
+                        endTimeInput.setCustomValidity('Godzina zakończenia musi być późniejsza niż rozpoczęcia');
+                    } else {
+                        endTimeInput.setCustomValidity('');
+                    }
+                }
+
+                startTimeInput.addEventListener('change', validateTimes);
+                endTimeInput.addEventListener('change', validateTimes);
+
+                availabilityContainer.appendChild(clone);
+            }
+
+            // Save all availability blocks
+            function saveAvailability() {
+                const blocks = [];
+                const blockElements = availabilityContainer.querySelectorAll('.availability-block');
+
+                // Validate all blocks before saving
+                let isValid = true;
+
+                blockElements.forEach(block => {
+                    const day = block.querySelector('.day-select').value;
+                    const startTime = block.querySelector('.start-time').value;
+                    const endTime = block.querySelector('.end-time').value;
+                    const mode = block.querySelector('.mode-select').value;
+
+                    if (!startTime || !endTime) {
+                        isValid = false;
+                        block.querySelector('.start-time').classList.add('is-invalid');
+                        block.querySelector('.end-time').classList.add('is-invalid');
+                    } else {
+                        block.querySelector('.start-time').classList.remove('is-invalid');
+                        block.querySelector('.end-time').classList.remove('is-invalid');
+                    }
+
+                    if (startTime && endTime && startTime >= endTime) {
+                        isValid = false;
+                        block.querySelector('.end-time').classList.add('is-invalid');
+                    }
+                });
+
+                if (!isValid) {
+                    alert('Proszę poprawić nieprawidłowe dane w blokach czasowych');
+                    return;
+                }
+
+                // Collect block data
+                blockElements.forEach(block => {
+                    blocks.push({
+                        id: block.dataset.id || null,
+                        day_of_week: parseInt(block.querySelector('.day-select').value),
+                        start_time: block.querySelector('.start-time').value,
+                        end_time: block.querySelector('.end-time').value,
+                        teaching_mode: block.querySelector('.mode-select').value
+                    });
+                });
+
+                // Show loading state
+                saveButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Zapisywanie...';
+                saveButton.disabled = true;
+
+                // Send to server
+                fetch('/api/crm/availability', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ blocks })
+                })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.success) {
+                        // Update UI with saved data
+                        blockElements.forEach((block, index) => {
+                            if (!block.dataset.id && result.new_ids && result.new_ids[index]) {
+                                block.dataset.id = result.new_ids[index];
+                            }
+                        });
+
+                        alert('Dostępność została zapisana pomyślnie!');
+                    } else {
+                        alert('Wystąpił błąd podczas zapisywania: ' + (result.error || 'Spróbuj ponownie'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Save error:', error);
+                    alert('Wystąpił błąd podczas zapisywania. Spróbuj ponownie.');
+                })
+                .finally(() => {
+                    // Restore button state
+                    saveButton.innerHTML = '<i class="fas fa-save"></i> Zapisz dostępność';
+                    saveButton.disabled = false;
+                });
+            }
+
+            // Load bookings data
+            function loadBookings() {
+                const lessonsContainer = document.getElementById('lessons');
+
+                fetch('/api/crm/bookings')
+                    .then(response => response.json())
+                    .then(bookings => {
+                        if (bookings.error) {
+                            lessonsContainer.innerHTML = `<p class="text-danger">${bookings.error}</p>`;
+                            return;
+                        }
+
+                        if (bookings.length === 0) {
+                            lessonsContainer.innerHTML = '<p class="text-center text-muted">Brak nadchodzących lekcji.</p>';
+                            return;
+                        }
+
+                        let html = '<div class="list-group">';
+                        for (let booking of bookings) {
+                            const bookingDate = new Date(booking.booking_date);
+                            const dateStr = bookingDate.toLocaleDateString('pl-PL', {
+                                weekday: 'long',
+                                day: 'numeric',
+                                month: 'long'
+                            });
+
+                            const isCompleted = booking.status === 'przeprowadzona' || booking.status === 'odwolana';
+
+                            html += `
+                                <a href="/lesson_crm/${booking.id}"
+                                   class="list-group-item list-group-item-action ${isCompleted ? 'completed' : ''}">
+                                    <div>
+                                        <strong>${dateStr} ${booking.start_time} - ${booking.end_time}</strong>
+                                        - z <em>${booking.student_name}</em>
+                                        (${booking.lesson_mode === 'online' ? 'Online' : 'Stacjonarnie'})
+                                    </div>
+                                    <span class="badge
+                                        ${booking.status === 'zaplanowana' ? 'bg-primary' :
+                                          booking.status === 'przeprowadzona' ? 'bg-success' :
+                                          booking.status === 'odwolana' ? 'bg-danger' : 'bg-secondary'}
+                                        status-badge">
+                                        ${booking.status}
+                                    </span>
+                                </a>
+                            `;
+                        }
+                        html += '</div>';
+                        lessonsContainer.innerHTML = html;
+                    })
+                    .catch(err => {
+                        lessonsContainer.innerHTML = '<p class="text-danger">Błąd podczas pobierania danych.</p>';
+                    });
+            }
+
+            // Event listeners
+            addButton.addEventListener('click', () => addAvailabilityBlock());
+            saveButton.addEventListener('click', saveAvailability);
+
+            // Load initial data
+            loadAvailability();
+            loadBookings();
+        });
+    </script>
+</body>
+</html>

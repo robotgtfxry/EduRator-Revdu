@@ -1,0 +1,463 @@
+<!--templates/edit_pin.html-->
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edytuj Pinezkę - Mapa Pinezek</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin=""/>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 20px auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1, h2 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .form-sections {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        .form-section {
+            padding: 20px;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+            font-weight: bold;
+        }
+        input[type="text"], textarea, input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        textarea {
+            height: 100px;
+            resize: vertical;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: #007cba;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #005a8b;
+        }
+        .button-danger {
+            background-color: #dc3545;
+        }
+        .button-danger:hover {
+            background-color: #c82333;
+        }
+        .button-success {
+            background-color: #28a745;
+        }
+        .button-success:hover {
+            background-color: #218838;
+        }
+        .links {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .links a {
+            color: #007cba;
+            text-decoration: none;
+            margin: 0 10px;
+        }
+        .links a:hover {
+            text-decoration: underline;
+        }
+        .flash {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .flash.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .flash.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        #map {
+            height: 300px;
+            width: 100%;
+            margin: 20px 0;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+        }
+        .search-button {
+            background-color: #28a745;
+            margin-top: 10px;
+            width: auto;
+            padding: 8px 16px;
+            display: inline-block;
+        }
+        .search-button:hover {
+            background-color: #218838;
+        }
+        .coords-display {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            font-family: monospace;
+        }
+
+        /* Kalendarz - style */
+        .calendar-section {
+            grid-column: 1 / -1;
+            margin-top: 20px;
+        }
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: 100px repeat(7, 1fr);
+            gap: 2px;
+            margin-top: 15px;
+        }
+        .calendar-header {
+            background-color: #007cba;
+            color: white;
+            padding: 8px 4px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        .time-label {
+            background-color: #6c757d;
+            color: white;
+            padding: 8px 4px;
+            text-align: center;
+            font-size: 11px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .time-slot {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #dee2e6;
+            background-color: #f8f9fa;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        .time-slot input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+        .time-slot:hover {
+            background-color: #e9ecef;
+        }
+        .time-slot.checked {
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+        }
+        .calendar-controls {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin: 15px 0;
+        }
+        .calendar-controls button {
+            width: auto;
+            padding: 8px 16px;
+            margin: 0;
+        }
+        .calendar-legend {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 14px;
+        }
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 3px;
+            border: 1px solid #dee2e6;
+        }
+        .legend-available {
+            background-color: #d4edda;
+        }
+        .legend-unavailable {
+            background-color: #f8f9fa;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="flash {{ category }}">{{ message }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <h1>Edytuj Pinezkę</h1>
+
+        <div class="form-sections">
+            <!-- Sekcja informacji o pinezce -->
+            <div class="form-section">
+                <h2>Informacje o pinezce</h2>
+                <form method="POST">
+                    <input type="hidden" name="update_pin" value="1">
+
+                    <div class="form-group">
+                        <label for="title">Tytuł:</label>
+                        <input type="text" id="title" name="title" value="{{ pin.title }}" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="description">Opis:</label>
+                        <textarea id="description" name="description" required>{{ pin.description }}</textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="region">Województwo:</label>
+                        <input type="text" id="region" name="region" value="{{ pin.region }}" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="city">Miasto:</label>
+                        <input type="text" id="city" name="city" value="{{ pin.city }}" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="address">Adres:</label>
+                        <input type="text" id="address" name="address" value="{{ pin.address }}" required>
+                        <button type="button" class="search-button" onclick="searchAddress()">Znajdź na mapie</button>
+                    </div>
+
+                    <div id="map"></div>
+
+                    <div class="coords-display">
+                        <strong>Aktualne współrzędne:</strong><br>
+                        Szerokość: {{ pin.lat }}<br>
+                        Długość: {{ pin.lng }}
+                    </div>
+
+                    <input type="hidden" id="lat" name="lat" value="{{ pin.lat }}">
+                    <input type="hidden" id="lng" name="lng" value="{{ pin.lng }}">
+
+                    <button type="submit">Zapisz informacje o pinezce</button>
+                </form>
+
+                {% if session.get('user_role') == 'admin' %}
+                    <form method="POST" action="{{ url_for('delete_pin', pin_id=pin.id) }}" style="margin-top: 10px;">
+                        <button type="submit" class="button-danger" onclick="return confirm('Czy na pewno chcesz usunąć tę pinezkę?')">Usuń pinezkę</button>
+                    </form>
+                {% endif %}
+            </div>
+
+            <!-- Sekcja kalendarza (tylko dla nauczycieli) -->
+            {% if show_calendar %}
+            <div class="form-section">
+                <h2>Kalendarz dostępności</h2>
+                <p style="text-align: center; color: #666; margin-bottom: 20px;">
+                    Zaznacz godziny, w których jesteś dostępny dla uczniów
+                </p>
+
+                <form method="POST" id="calendar-form">
+                    <input type="hidden" name="update_calendar" value="1">
+
+                    <div class="calendar-controls">
+                        <button type="button" onclick="selectAll()" class="button-success">Zaznacz wszystko</button>
+                        <button type="button" onclick="clearAll()" class="button-danger">Wyczyść wszystko</button>
+                    </div>
+
+                    <div class="calendar-grid">
+                        <!-- Nagłówki -->
+                        <div class="calendar-header">Godzina</div>
+                        <div class="calendar-header">Pon</div>
+                        <div class="calendar-header">Wt</div>
+                        <div class="calendar-header">Śr</div>
+                        <div class="calendar-header">Czw</div>
+                        <div class="calendar-header">Pt</div>
+                        <div class="calendar-header">Sob</div>
+                        <div class="calendar-header">Ndz</div>
+
+                        <!-- Rzędy z czasami -->
+                        {% for slot in time_slots %}
+                        <div class="time-label">{{ slot }}</div>
+                        {% for day in range(7) %}
+                            {% set field_name = "day_" + day|string + "_" + slot.replace(' - ', '_').replace(':', '') %}
+                            {% set is_checked = availability.get(day, {}).get(slot, 0) %}
+                            <div class="time-slot" onclick="toggleCheckbox(this)">
+                                <input type="checkbox"
+                                       name="{{ field_name }}"
+                                       id="{{ field_name }}"
+                                       {{ 'checked' if is_checked else '' }}
+                                       onchange="updateSlotAppearance(this)">
+                            </div>
+                        {% endfor %}
+                        {% endfor %}
+                    </div>
+
+                    <div class="calendar-legend">
+                        <div class="legend-item">
+                            <div class="legend-color legend-available"></div>
+                            <span>Dostępny</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color legend-unavailable"></div>
+                            <span>Niedostępny</span>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="button-success">Zapisz kalendarz</button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="links">
+            <a href="{{ url_for('pin', pin_id=pin.id) }}">Powrót do pinezki</a>
+            <a href="{{ url_for('index') }}">Powrót do mapy</a>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
+    <script>
+        // Inicjalizacja mapy z aktualnymi współrzędnymi
+        const map = L.map('map').setView([{{ pin.lat }}, {{ pin.lng }}], 15);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 18,
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Dodanie markera
+        const marker = L.marker([{{ pin.lat }}, {{ pin.lng }}]).addTo(map);
+        marker.bindPopup("Aktualna lokalizacja").openPopup();
+
+        // Funkcja do wyszukiwania adresu
+        function searchAddress() {
+            const address = document.getElementById('address').value;
+            if (!address) {
+                alert('Proszę wpisać adres');
+                return;
+            }
+
+            fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1&countrycodes=pl`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data && data.length > 0) {
+                        const result = data[0];
+                        const lat = parseFloat(result.lat);
+                        const lng = parseFloat(result.lon);
+
+                        // Aktualizuj mapę
+                        map.setView([lat, lng], 15);
+                        marker.setLatLng([lat, lng]);
+
+                        // Aktualizuj ukryte pola formularza
+                        document.getElementById('lat').value = lat;
+                        document.getElementById('lng').value = lng;
+
+                        // Pokaż nowe współrzędne
+                        document.querySelector('.coords-display').innerHTML = `
+                            <strong>Nowe współrzędne:</strong><br>
+                            Szerokość: ${lat}<br>
+                            Długość: ${lng}
+                        `;
+                    } else {
+                        alert('Nie znaleziono lokalizacji');
+                    }
+                })
+                .catch(error => {
+                    console.error('Błąd:', error);
+                    alert('Wystąpił błąd podczas wyszukiwania');
+                });
+        }
+
+        // Funkcje kalendarza
+        function toggleCheckbox(element) {
+            const checkbox = element.querySelector('input[type="checkbox"]');
+            checkbox.checked = !checkbox.checked;
+            updateSlotAppearance(checkbox);
+        }
+
+        function updateSlotAppearance(checkbox) {
+            const slot = checkbox.parentElement;
+            if (checkbox.checked) {
+                slot.classList.add('checked');
+            } else {
+                slot.classList.remove('checked');
+            }
+        }
+
+        function selectAll() {
+            const checkboxes = document.querySelectorAll('.time-slot input[type="checkbox"]');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = true;
+                updateSlotAppearance(checkbox);
+            });
+        }
+
+        function clearAll() {
+            const checkboxes = document.querySelectorAll('.time-slot input[type="checkbox"]');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = false;
+                updateSlotAppearance(checkbox);
+            });
+        }
+
+        // Inicjalizacja wyglądu checkboxów przy ładowaniu strony
+        document.addEventListener('DOMContentLoaded', function() {
+            const checkboxes = document.querySelectorAll('.time-slot input[type="checkbox"]');
+            checkboxes.forEach(checkbox => {
+                updateSlotAppearance(checkbox);
+            });
+        });
+    </script>
+</body>
+</html>

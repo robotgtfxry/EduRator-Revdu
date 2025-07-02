@@ -1,0 +1,516 @@
+<!-- templates/teacher_profile.html -->
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profil Nauczyciela</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css ">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .profile-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .profile-header {
+            background: linear-gradient(135deg, #3498db, #2c3e50);
+            color: white;
+            padding: 30px;
+            border-radius: 10px;
+            display: flex;
+            gap: 30px;
+            margin-bottom: 30px;
+            position: relative;
+            overflow: hidden;
+        }
+        .profile-header::before {
+            content: "";
+            position: absolute;
+            top: -50px;
+            right: -50px;
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+        }
+        .avatar-container {
+            flex-shrink: 0;
+        }
+        .teacher-avatar {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            background-color: #2980b9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 60px;
+            border: 5px solid rgba(255, 255, 255, 0.3);
+        }
+        .profile-info {
+            flex: 1;
+        }
+        .teacher-name {
+            margin: 0;
+            font-size: 36px;
+        }
+        .teacher-title {
+            font-size: 20px;
+            opacity: 0.9;
+            margin: 5px 0 15px;
+        }
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background-color: #2ecc71;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+        .contact-info {
+            display: flex;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .contact-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 16px;
+        }
+        .profile-actions {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .btn {
+            padding: 12px 25px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-size: 16px;
+            cursor: pointer;
+            border: none;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: bold;
+        }
+        .btn-primary {
+            background-color: #e74c3c;
+            color: white;
+        }
+        .btn-secondary {
+            background-color: #f1c40f;
+            color: #2c3e50;
+        }
+        .btn-outline {
+            background-color: transparent;
+            color: white;
+            border: 2px solid white;
+        }
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        .profile-content {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 30px;
+        }
+        .section {
+            background-color: white;
+            border-radius: 10px;
+            padding: 25px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+            margin-bottom: 30px;
+        }
+        .section-title {
+            margin-top: 0;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #f1f1f1;
+            color: #2c3e50;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .about-content {
+            line-height: 1.6;
+            color: #555;
+        }
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+        .info-item {
+            margin-bottom: 15px;
+        }
+        .info-label {
+            font-weight: bold;
+            color: #7f8c8d;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+        .info-value {
+            font-size: 16px;
+        }
+        .subjects-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .subject-tag {
+            background-color: #e0f7fa;
+            color: #006064;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+        .modes-list {
+            margin-top: 10px;
+        }
+        .mode-tag {
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 15px;
+        }
+        .mode-online {
+            background-color: #e8f5e9;
+            color: #2e7d32;
+        }
+        .mode-in-person {
+            background-color: #e3f2fd;
+            color: #1565c0;
+        }
+        .reviews-container {
+            margin-top: 20px;
+        }
+        .review {
+            border-bottom: 1px solid #eee;
+            padding: 15px 0;
+        }
+        .review:last-child {
+            border-bottom: none;
+        }
+        .review-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .review-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: #3498db;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        .review-name {
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        .review-date {
+            color: #7f8c8d;
+            font-size: 14px;
+        }
+        .review-rating {
+            color: #f1c40f;
+            margin: 5px 0;
+        }
+        .review-content {
+            color: #555;
+            line-height: 1.5;
+        }
+        .no-reviews {
+            text-align: center;
+            padding: 30px;
+            color: #7f8c8d;
+        }
+        .no-reviews i {
+            font-size: 48px;
+            margin-bottom: 15px;
+            color: #bdc3c7;
+        }
+        .sidebar .section {
+            position: sticky;
+            top: 20px;
+        }
+        .booking-card {
+            text-align: center;
+        }
+        .booking-price {
+            font-size: 28px;
+            font-weight: bold;
+            color: #e74c3c;
+            margin: 15px 0;
+        }
+        .booking-price span {
+            font-size: 16px;
+            color: #7f8c8d;
+            font-weight: normal;
+        }
+        .booking-features {
+            text-align: left;
+            margin: 20px 0;
+        }
+        .feature-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+            color: #555;
+        }
+        .feature-item i {
+            color: #2ecc71;
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="nav-left">
+            {% if logged_in %}
+                Witaj, <strong>{{ session.get('username') }}</strong> ({{ role }}) |
+                <a href="{{ url_for('index') }}">Strona główna</a>
+                <a href="{{ url_for('online_teachers') }}">Nauczyciele Online</a>
+                {% if role in ['admin', 'teacher'] %}
+                    <a href="{{ url_for('add') }}">Dodaj Pinezkę</a>
+                {% endif %}
+                {% if role == 'teacher' and teacher_has_pin %}
+                    <a href="{{ url_for('edit_pin', pin_id=session.get('assigned_pin_id')) }}">Edytuj swoją pinezkę</a>
+                {% endif %}
+                {% if role == 'admin' %}
+                    <a href="{{ url_for('users') }}">Użytkownicy</a>
+                    <a href="{{ url_for('messages') }}">Wiadomości</a>
+                {% endif %}
+            {% else %}
+                <a href="{{ url_for('login') }}">Logowanie</a>
+                <a href="{{ url_for('register') }}">Rejestracja</a>
+            {% endif %}
+        </div>
+        <div class="nav-right">
+            {% if logged_in %}
+                <div class="notification-icon" id="notificationIcon">
+                    🔔
+                    {% if unread_notifications > 0 %}
+                        <span class="notification-badge" id="notificationBadge">{{ unread_notifications }}</span>
+                    {% endif %}
+                    <div class="notification-dropdown" id="notificationDropdown">
+                        <div class="notification-header">Powiadomienia</div>
+                        <div id="notificationList">
+                            <!-- Notifications will be loaded here -->
+                        </div>
+                        <a href="#" class="view-all">Zobacz wszystkie</a>
+                    </div>
+                </div>
+                <a href="{{ url_for('logout') }}">Wyloguj</a>
+            {% endif %}
+        </div>
+    </nav>
+    <div class="profile-container">
+        <div class="profile-header">
+            <div class="avatar-container">
+                <div class="teacher-avatar">
+                    {{ teacher.first_name[0] }}{{ teacher.last_name[0] }}
+                </div>
+            </div>
+            <div class="profile-info">
+                <h1 class="teacher-name">{{ teacher.first_name }} {{ teacher.last_name }}</h1>
+                <div class="teacher-title">Nauczyciel {{ teacher.subjects.split(', ')[0] }}</div>
+                <div class="status-badge">
+                    <i class="fas fa-circle"></i> ONLINE - dostępny do lekcji
+                </div>
+                <div class="contact-info">
+                    <div class="contact-item">
+                        <i class="fas fa-map-marker-alt"></i>
+                        {% if teacher.voivodeship %}
+                            {{ teacher.voivodeship }}{% if teacher.city %}, {{ teacher.city }}{% endif %}
+                        {% else %}
+                            Nauczyciel online
+                        {% endif %}
+                    </div>
+                    <div class="contact-item">
+                        <i class="fas fa-clock"></i>
+                        Dostępność: {{ teacher.availability_hours }}h/dzień
+                    </div>
+                    <div class="contact-item">
+                        <i class="fas fa-graduation-cap"></i>
+                        Doświadczenie: {{ teacher.experience_years }} lat
+                    </div>
+                </div>
+                <div class="profile-actions">
+                    <a href="{{ url_for('book_teacher', teacher_id=teacher.id) }}" class="btn btn-primary">
+                        <i class="fas fa-calendar-check"></i> Umów lekcję
+                    </a>
+                    <a href="#" class="btn btn-outline">
+                        <i class="fas fa-envelope"></i> Wyślij wiadomość
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="profile-content">
+            <div class="main-content">
+                <div class="section">
+                    <h2 class="section-title"><i class="fas fa-user"></i> O nauczycielu</h2>
+                    <div class="about-content">
+                        {{ teacher.bio or "Nauczyciel nie dodał jeszcze opisu swojego profilu." }}
+                    </div>
+                </div>
+                <div class="section">
+                    <h2 class="section-title"><i class="fas fa-book"></i> Przedmioty i specjalizacje</h2>
+                    <div class="subjects-list">
+                        {% for subject in teacher.subjects.split(', ') %}
+                        <div class="subject-tag">{{ subject }}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="section">
+                    <h2 class="section-title"><i class="fas fa-star"></i> Opinie uczniów ({{ reviews|length }})</h2>
+                    <div class="reviews-container">
+                        {% if reviews %}
+                            {% for review in reviews %}
+                            <div class="review">
+                                <div class="review-header">
+                                    <div class="review-avatar">{{ review.student_name[0] }}</div>
+                                    <div class="review-name">{{ review.student_name }}</div>
+                                    <div class="review-date">{{ review.date }}</div>
+                                </div>
+                                <div class="review-rating">
+                                    {% for i in range(5) %}
+                                    <i class="fas fa-star{% if i >= review.rating %}-o{% endif %}"></i>
+                                    {% endfor %}
+                                </div>
+                                <div class="review-content">
+                                    {{ review.content }}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="no-reviews">
+                                <i class="far fa-frown"></i>
+                                <h3>Brak opinii</h3>
+                                <p>Ten nauczyciel nie ma jeszcze żadnych opinii.</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="sidebar">
+                <div class="section booking-card">
+                    <h2 class="section-title"><i class="fas fa-tag"></i> Cennik</h2>
+                    <div class="booking-price">
+                        <span>30 minut</span>
+                    </div>
+                    <div class="modes-list">
+                        <div class="mode-tag mode-online">
+                            <i class="fas fa-laptop"></i> Online <span>{{ pricing.price_in_person }} zł<span/>
+                        </div>
+                        <div class="mode-tag mode-in-person">
+                            <i class="fas fa-user"></i> Stacjonarnie <span>{{ pricing.price_online }} zł<span/>
+                        </div>
+                    </div>
+                    <div class="booking-features">
+                        <div class="feature-item">
+                            <i class="fas fa-check-circle"></i>
+                            <span>Materiały dydaktyczne w cenie</span>
+                        </div>
+                        <div class="feature-item">
+                            <i class="fas fa-check-circle"></i>
+                            <span>Darmowa lekcja próbna</span>
+                        </div>
+                        <div class="feature-item">
+                            <i class="fas fa-check-circle"></i>
+                            <span>Elastyczne terminy</span>
+                        </div>
+                        <div class="feature-item">
+                            <i class="fas fa-check-circle"></i>
+                            <span>Przygotowanie do egzaminów</span>
+                        </div>
+                    </div>
+                    <a href="{{ url_for('book_teacher', teacher_id=teacher.id) }}" class="btn btn-primary" style="width: 100%;">
+                        <i class="fas fa-calendar-check"></i> Umów lekcję
+                    </a>
+                </div>
+                <div class="section">
+                    <h2 class="section-title"><i class="fas fa-info-circle"></i> Szczegóły</h2>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <div class="info-label">Doświadczenie</div>
+                            <div class="info-value">{{ teacher.experience_years }} lat</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Szkoła</div>
+                            <div class="info-value">{{ teacher.school or 'Nie podano' }}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Metoda nauczania</div>
+                            <div class="info-value">{{ teacher.tmethod }}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Języki</div>
+                            <div class="info-value">Polski, Angielski</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Nauczyciel od</div>
+                            <div class="info-value">{{ teacher.created_at|format_date }}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Ostatnio online</div>
+                            <div class="info-value">{{ teacher.last_online|format_datetime }}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="section">
+                    <h2 class="section-title"><i class="fas fa-map-marker-alt"></i> Lokalizacja</h2>
+                    {% if teacher.city %}
+                    <p><i class="fas fa-city"></i> {{ teacher.city }}, {{ teacher.voivodeship }}</p>
+                    <p><i class="fas fa-home"></i> {{ teacher.address or 'Nie podano adresu' }}</p>
+                    <div id="mini-map" style="height: 200px; margin-top: 15px; border-radius: 8px; overflow: hidden;"></div>
+                    {% else %}
+                    <p>Nauczyciel prowadzi wyłącznie lekcje online</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="https://unpkg.com/leaflet @1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
+    <script>
+        // Inicjalizacja miniaturowej mapy
+        function initMiniMap() {
+            {% if teacher.lat and teacher.lng %}
+            const lat = {{ teacher.lat }};
+            const lng = {{ teacher.lng }};
+            const map = L.map('mini-map').setView([lat, lng], 14);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 18,
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+            L.marker([lat, lng]).addTo(map)
+                .bindPopup('Lokalizacja nauczyciela');
+            {% endif %}
+        }
+        // Inicjalizacja po załadowaniu DOM
+        document.addEventListener('DOMContentLoaded', function() {
+            initMiniMap();
+        });
+    </script>
+</body>
+</html>

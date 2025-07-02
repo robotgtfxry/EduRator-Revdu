@@ -1,0 +1,536 @@
+<!--templates/profile.html-->
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profil użytkownika</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .profile-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem 0;
+            margin-bottom: 2rem;
+        }
+        .profile-card {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+        .profile-avatar {
+            width: 120px;
+            height: 120px;
+            background: #f8f9fa;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+            color: #6c757d;
+            margin-bottom: 1rem;
+            overflow: hidden;
+        }
+        .profile-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .info-label {
+            font-weight: 600;
+            color: #495057;
+            margin-bottom: 0.25rem;
+        }
+        .info-value {
+            color: #6c757d;
+            margin-bottom: 1rem;
+        }
+        .role-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+        .role-user { background-color: #e3f2fd; color: #1976d2; }
+        .role-teacher { background-color: #f3e5f5; color: #7b1fa2; }
+        .role-regional_teacher { background-color: #e8f5e8; color: #388e3c; }
+        .role-admin { background-color: #ffebee; color: #d32f2f; }
+        .btn-edit {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            color: white;
+            transition: transform 0.2s;
+        }
+        .btn-edit:hover {
+            transform: translateY(-2px);
+            color: white;
+        }
+        .alert {
+            border-radius: 10px;
+            border: none;
+        }
+        .profile-section {
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #eee;
+        }
+        .profile-section:last-child {
+            border-bottom: none;
+        }
+        .bio-text {
+            white-space: pre-line;
+        }
+        .subject-tag {
+            display: inline-block;
+            background-color: #e9ecef;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            margin-right: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        .file-upload-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+            width: 100%;
+        }
+        .file-upload-wrapper input[type=file] {
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            cursor: pointer;
+            width: 100%;
+            height: 100%;
+        }
+        .file-upload-btn {
+            display: block;
+            padding: 6px 12px;
+            background: #f8f9fa;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            text-align: center;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('index') }}">
+                <i class="fas fa-map-marker-alt me-2"></i>System Pinezek
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('index') }}">
+                            <i class="fas fa-home me-1"></i>Strona główna
+                        </a>
+                    </li>
+                    {% if session.user_role in ['teacher', 'regional_teacher', 'admin'] %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('add') }}">
+                            <i class="fas fa-plus me-1"></i>Dodaj pinezkę
+                        </a>
+                    </li>
+                    {% endif %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('bookings') }}">
+                            <i class="fas fa-calendar me-1"></i>Rezerwacje
+                        </a>
+                    </li>
+                    {% if session.user_role == 'admin' %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('users') }}">
+                            <i class="fas fa-users me-1"></i>Użytkownicy
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('messages') }}">
+                            <i class="fas fa-envelope me-1"></i>Wiadomości
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{{ url_for('profile') }}">
+                            <i class="fas fa-user me-1"></i>Profil
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('logout') }}">
+                            <i class="fas fa-sign-out-alt me-1"></i>Wyloguj
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="profile-header">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h1 class="mb-2">
+                        <i class="fas fa-user-circle me-3"></i>Profil użytkownika
+                    </h1>
+                    <p class="mb-0 opacity-75">Zarządzaj swoimi danymi osobowymi</p>
+                </div>
+                <div class="col-md-4 text-md-end">
+                    <button class="btn btn-light btn-lg" data-bs-toggle="modal" data-bs-target="#editModal">
+                        <i class="fas fa-edit me-2"></i>Edytuj profil
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show" role="alert">
+                        <i class="fas fa-{{ 'exclamation-circle' if category == 'error' else 'check-circle' }} me-2"></i>
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="row">
+            <div class="col-lg-8">
+                <div class="profile-card">
+                    <div class="row">
+                        <div class="col-md-3 text-center">
+                            <div class="profile-avatar mx-auto">
+                                {% if user.profile_picture %}
+                                <img src="{{ url_for('static', filename='profile_pictures/' + user.profile_picture) }}" alt="Profile Picture">
+                                {% else %}
+                                <i class="fas fa-user"></i>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-9">
+                            <h3 class="mb-3">
+                                {% if user.first_name or user.last_name %}
+                                    {{ user.first_name }} {{ user.last_name }}
+                                    <small class="text-muted d-block">({{ user.username }})</small>
+                                {% else %}
+                                    {{ user.username }}
+                                {% endif %}
+                            </h3>
+
+                            <div class="profile-section">
+                                <h5><i class="fas fa-id-card me-2"></i>Dane podstawowe</h5>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="info-label">Nazwa użytkownika</div>
+                                        <div class="info-value">{{ user.username }}</div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="info-label">Adres email</div>
+                                        <div class="info-value">{{ user.email or 'Nie podano' }}</div>
+                                    </div>
+                                    {% if user.phone %}
+                                    <div class="col-md-6">
+                                        <div class="info-label">Telefon</div>
+                                        <div class="info-value">{{ user.phone }}</div>
+                                    </div>
+                                    {% endif %}
+                                    <div class="col-md-6">
+                                        <div class="info-label">Rola</div>
+                                        <div class="info-value">
+                                            <span class="role-badge role-{{ user.role_name }}">
+                                                {% if user.role_name == 'admin' %}
+                                                    <i class="fas fa-crown me-1"></i>Administrator
+                                                {% elif user.role_name == 'regional_teacher' %}
+                                                    <i class="fas fa-chalkboard-teacher me-1"></i>Nauczyciel regionalny
+                                                {% elif user.role_name == 'teacher' %}
+                                                    <i class="fas fa-graduation-cap me-1"></i>Nauczyciel
+                                                {% else %}
+                                                    <i class="fas fa-user me-1"></i>Użytkownik
+                                                {% endif %}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    {% if user.voivodeship %}
+                                    <div class="col-md-6">
+                                        <div class="info-label">Województwo</div>
+                                        <div class="info-value">
+                                            <i class="fas fa-map-marker-alt me-1"></i>{{ user.voivodeship|title }}
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                    <!-- Dodane pole email opiekuna -->
+                                    {% if user.role_name == 'user' and user.parental_email %}
+                                    <div class="col-md-6">
+                                        <div class="info-label">Email opiekuna</div>
+                                        <div class="info-value">
+                                            <a href="mailto:{{ user.parental_email }}" class="text-decoration-none">
+                                                {{ user.parental_email }}
+                                            </a>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            {% if user.role_name in ['teacher', 'regional_teacher'] %}
+                            <div class="profile-section">
+                                <h5><i class="fas fa-graduation-cap me-2"></i>Informacje zawodowe</h5>
+                                <div class="row">
+                                    {% if user.school %}
+                                    <div class="col-md-6">
+                                        <div class="info-label">Szkoła/Instytucja</div>
+                                        <div class="info-value">{{ user.school }}</div>
+                                    </div>
+                                    {% endif %}
+                                    {% if user.subjects %}
+                                    <div class="col-md-6">
+                                        <div class="info-label">Przedmioty</div>
+                                        <div class="info-value">
+                                            {% for subject in user.subjects.split(',') %}
+                                                <span class="subject-tag">{{ subject.strip() }}</span>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                    {% if user.experience_years %}
+                                    <div class="col-md-6">
+                                        <div class="info-label">Doświadczenie (lata)</div>
+                                        <div class="info-value">{{ user.experience_years }}</div>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            {% if user.bio %}
+                            <div class="profile-section">
+                                <h5><i class="fas fa-info-circle me-2"></i>O mnie</h5>
+                                <div class="bio-text">{{ user.bio }}</div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                {% if user.role_name == 'teacher' and user.regional_teacher_name %}
+                <div class="profile-card">
+                    <h5 class="mb-3">
+                        <i class="fas fa-user-tie me-2"></i>Nauczyciel regionalny
+                    </h5>
+                    <div class="info-label">Przypisany do</div>
+                    <div class="info-value">{{ user.regional_teacher_name }}</div>
+                    {% if user.regional_teacher_email %}
+                    <div class="info-label">Email</div>
+                    <div class="info-value">
+                        <a href="mailto:{{ user.regional_teacher_email }}" class="text-decoration-none">
+                            {{ user.regional_teacher_email }}
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <div class="profile-card">
+                    <h5 class="mb-3">
+                        <i class="fas fa-info-circle me-2"></i>Informacje o koncie
+                    </h5>
+                    <div class="info-label">ID użytkownika</div>
+                    <div class="info-value">#{{ user.id }}</div>
+                    <div class="info-label">Data rejestracji</div>
+                    <div class="info-value">{{ user.created_at }}</div>
+                    <div class="info-label">Status konta</div>
+                    <div class="info-value">
+                        <span class="badge bg-success">
+                            <i class="fas fa-check-circle me-1"></i>Aktywne
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="editModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <form method="POST" enctype="multipart/form-data">
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <i class="fas fa-edit me-2"></i>Edytuj profil
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="first_name" class="form-label">
+                                        <i class="fas fa-user me-1"></i>Imię
+                                    </label>
+                                    <input type="text" class="form-control" id="first_name" name="first_name"
+                                           value="{{ user.first_name or '' }}">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="last_name" class="form-label">
+                                        <i class="fas fa-user me-1"></i>Nazwisko
+                                    </label>
+                                    <input type="text" class="form-control" id="last_name" name="last_name"
+                                           value="{{ user.last_name or '' }}">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="email" class="form-label">
+                                <i class="fas fa-envelope me-1"></i>Adres email *
+                            </label>
+                            <input type="email" class="form-control" id="email" name="email"
+                                   value="{{ user.email or '' }}" required>
+                            <div class="form-text">
+                                Podaj prawidłowy adres email
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="phone" class="form-label">
+                                <i class="fas fa-phone me-1"></i>Numer telefonu
+                            </label>
+                            <input type="tel" class="form-control" id="phone" name="phone"
+                                   value="{{ user.phone or '' }}">
+                        </div>
+
+                        <!-- Dodane pole email opiekuna -->
+                        {% if user.role_name == 'user' %}
+                        <div class="mb-3">
+                            <label for="parental_email" class="form-label">
+                                <i class="fas fa-user-friends me-1"></i>Email opiekuna
+                            </label>
+                            <input type="email" class="form-control" id="parental_email" name="parental_email"
+                                   value="{{ user.parental_email or '' }}">
+                            <div class="form-text">
+                                Wymagane dla uczniów, pozostaw puste jeśli nie dotyczy
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        {% if user.role_name in ['teacher', 'regional_teacher'] %}
+                        <div class="profile-section">
+                            <h5 class="mb-3"><i class="fas fa-graduation-cap me-2"></i>Informacje zawodowe</h5>
+                            <div class="mb-3">
+                                <label for="school" class="form-label">
+                                    <i class="fas fa-school me-1"></i>Szkoła/Instytucja
+                                </label>
+                                <input type="text" class="form-control" id="school" name="school"
+                                       value="{{ user.school or '' }}">
+                            </div>
+                            <div class="mb-3">
+                                <label for="subjects" class="form-label">
+                                    <i class="fas fa-book me-1"></i>Przedmioty
+                                </label>
+                                <select class="form-select" id="subjects" name="subjects" multiple>
+                                    {% for subject in school_subjects %}
+                                        <option value="{{ subject }}"
+                                                {% if user.subjects and subject in user.subjects.split(',') %}selected{% endif %}>
+                                            {{ subject }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text">Przytrzymaj Ctrl (Windows) lub Command (Mac) aby wybrać wiele przedmiotów</div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="experience_years" class="form-label">
+                                    <i class="fas fa-clock me-1"></i>Doświadczenie (lata)
+                                </label>
+                                <input type="number" class="form-control" id="experience_years" name="experience_years"
+                                       value="{{ user.experience_years or '0' }}" min="0" max="50">
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <div class="mb-3">
+                            <label for="bio" class="form-label">
+                                <i class="fas fa-info-circle me-1"></i>O mnie
+                            </label>
+                            <textarea class="form-control" id="bio" name="bio" rows="4">{{ user.bio or '' }}</textarea>
+                            <div class="form-text">Krótki opis o sobie</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="profile_picture" class="form-label">
+                                <i class="fas fa-camera me-1"></i>Zdjęcie profilowe
+                            </label>
+                            <div class="file-upload-wrapper">
+                                <div class="file-upload-btn">
+                                    <i class="fas fa-upload me-2"></i>
+                                    <span id="file-name">Wybierz plik</span>
+                                </div>
+                                <input type="file" class="form-control" id="profile_picture" name="profile_picture"
+                                       accept="image/*" onchange="updateFileName(this)">
+                            </div>
+                            <div class="form-text">
+                                Dozwolone formaty: JPG, PNG, GIF. Maksymalny rozmiar: 2MB.
+                                {% if user.profile_picture %}
+                                    <div class="mt-2">
+                                        <span>Aktualne zdjęcie:</span>
+                                        <img src="{{ url_for('static', filename='profile_pictures/' + user.profile_picture) }}"
+                                             alt="Aktualne zdjęcie profilowe" class="img-thumbnail mt-2" style="max-width: 150px;">
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <script>
+                            function updateFileName(input) {
+                                const fileName = input.files[0] ? input.files[0].name : "Wybierz plik";
+                                document.getElementById('file-name').textContent = fileName;
+                            }
+                        </script>
+
+                        {% if user.role_name in ['teacher', 'regional_teacher'] %}
+                        <div class="mb-3">
+                            <label for="tmethod" class="form-label">
+                                <i class="fas fa-chalkboard me-1"></i>Metoda nauczania
+                            </label>
+                            <input type="text" class="form-control" id="tmethod" name="tmethod" value="{{ user.tmethod or '' }}">
+                            <div class="form-text">Np. „Metoda Montessori”, „Nauczanie online z wykorzystaniem gier”</div>
+                        </div>
+                        {% endif %}
+
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>Uwaga:</strong> Inne dane konta (nazwa użytkownika, rola, województwo)
+                            mogą być zmieniane tylko przez administratora systemu.
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="fas fa-times me-1"></i>Anuluj
+                        </button>
+                        <button type="submit" class="btn btn-edit">
+                            <i class="fas fa-save me-1"></i>Zapisz zmiany
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

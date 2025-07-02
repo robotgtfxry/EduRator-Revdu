@@ -1,0 +1,706 @@
+<!--templates/pin.html-->
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ pin.title }} - Mapa Pinezek</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin=""/>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 20px auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1, h2 {
+            color: #333;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #007cba;
+            padding-bottom: 10px;
+        }
+        .pin-details {
+            margin-bottom: 30px;
+        }
+        .detail-item {
+            margin-bottom: 15px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+        .detail-label {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        .detail-value {
+            color: #666;
+        }
+        #map {
+            height: 400px;
+            width: 100%;
+            border-radius: 8px;
+            border: 2px solid #ddd;
+            margin: 20px 0;
+        }
+        .links {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .links a {
+            color: #007cba;
+            text-decoration: none;
+            margin: 0 10px;
+            padding: 8px 16px;
+            border: 1px solid #007cba;
+            border-radius: 4px;
+            transition: all 0.3s;
+            display: inline-block;
+        }
+        .links a:hover {
+            background-color: #007cba;
+            color: white;
+        }
+        .links a.edit-button {
+            background-color: #28a745;
+            border-color: #28a745;
+            color: white;
+        }
+        .links a.edit-button:hover {
+            background-color: #218838;
+            border-color: #1e7e34;
+        }
+        .coordinates {
+            font-family: monospace;
+            background-color: #e9ecef;
+            padding: 5px 8px;
+            border-radius: 3px;
+            font-size: 14px;
+        }
+
+        /* Kalendarz - style */
+        .calendar-section {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+        }
+        .booking-controls {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: white;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+        }
+        .booking-controls label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        .booking-controls input, .booking-controls textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        .booking-controls textarea {
+            height: 60px;
+            resize: vertical;
+        }
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: 100px repeat(7, 1fr);
+            gap: 2px;
+            margin-top: 15px;
+        }
+        .calendar-header {
+            background-color: #007cba;
+            color: white;
+            padding: 8px 4px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        .time-label {
+            background-color: #6c757d;
+            color: white;
+            padding: 8px 4px;
+            text-align: center;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        .time-slot {
+            padding: 6px 2px;
+            text-align: center;
+            border: 1px solid #dee2e6;
+            font-size: 10px;
+            transition: all 0.2s;
+            cursor: pointer;
+            min-height: 40px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        .time-slot.available {
+            background-color: #d4edda;
+            color: #155724;
+            border-color: #c3e6cb;
+        }
+        .time-slot.available:hover {
+            background-color: #c3e6cb;
+            transform: scale(1.02);
+        }
+        .time-slot.unavailable {
+            background-color: #f8d7da;
+            color: #721c24;
+            border-color: #f5c6cb;
+            cursor: not-allowed;
+        }
+        .time-slot.booked {
+            background-color: #fff3cd;
+            color: #856404;
+            border-color: #ffeaa7;
+        }
+        .time-slot.my-booking {
+            background-color: #cce5ff;
+            color: #004085;
+            border-color: #99d6ff;
+        }
+        .booking-info {
+            font-size: 9px;
+            margin-top: 2px;
+            font-weight: bold;
+        }
+        .calendar-legend {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 15px;
+            padding: 10px;
+            background-color: white;
+            border-radius: 4px;
+            flex-wrap: wrap;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 12px;
+        }
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 3px;
+            border: 1px solid #dee2e6;
+        }
+        .legend-available {
+            background-color: #d4edda;
+        }
+        .legend-unavailable {
+            background-color: #f8d7da;
+        }
+        .legend-booked {
+            background-color: #fff3cd;
+        }
+        .legend-my-booking {
+            background-color: #cce5ff;
+        }
+        .no-calendar {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+            font-style: italic;
+        }
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+            margin: 5px;
+        }
+        .btn-primary {
+            background-color: #007cba;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #005a8b;
+        }
+        .btn-danger {
+            background-color: #dc3545;
+            color: white;
+        }
+        .btn-danger:hover {
+            background-color: #c82333;
+        }
+        .btn-success {
+            background-color: #28a745;
+            color: white;
+        }
+        .btn-success:hover {
+            background-color: #218838;
+        }
+
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        .modal-content {
+            background-color: white;
+            margin: 10% auto;
+            padding: 20px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .modal-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+        }
+        .close {
+            font-size: 24px;
+            cursor: pointer;
+            color: #666;
+        }
+        .close:hover {
+            color: #000;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        .form-group input, .form-group textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        .alert {
+            padding: 12px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .alert-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .alert-error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>{{ pin.title }}</h1>
+
+        <div class="pin-details">
+            <div class="detail-item">
+                <div class="detail-label">Opis:</div>
+                <div class="detail-value">{{ pin.description }}</div>
+            </div>
+
+            <div class="detail-item">
+                <div class="detail-label">Województwo:</div>
+                <div class="detail-value">{{ pin.region }}</div>
+            </div>
+
+            <div class="detail-item">
+                <div class="detail-label">Miasto:</div>
+                <div class="detail-value">{{ pin.city }}</div>
+            </div>
+
+            <div class="detail-item">
+                <div class="detail-label">Adres:</div>
+                <div class="detail-value">{{ pin.address }}</div>
+            </div>
+
+            <div class="detail-item">
+                <div class="detail-label">Współrzędne:</div>
+                <div class="detail-value">
+                    <span class="coordinates">{{ "%.6f"|format(pin.lat) }}, {{ "%.6f"|format(pin.lng) }}</span>
+                </div>
+            </div>
+
+            <div class="detail-item">
+                <div class="detail-label">Utworzona przez:</div>
+                <div class="detail-value">{{ pin.creator }}</div>
+            </div>
+        </div>
+
+        <h2>Lokalizacja na mapie</h2>
+        <div id="map"></div>
+
+        {% if show_calendar %}
+        <div class="calendar-section">
+            <h2>Kalendarz dostępności i rezerwacji</h2>
+
+            {% if session.get('user_id') and session.get('user_role') == 'user' %}
+            <div class="booking-controls">
+                <h3>Rezerwacja terminu</h3>
+                <p>Data na którą chcesz zarezerwować termin:</p>
+                <label for="booking-date">Wybierz datę:</label>
+                <input type="date" id="booking-date" min="{{ (datetime.now().strftime('%Y-%m-%d')) }}">
+                <div style="margin-top: 10px;">
+                    <small><strong>Instrukcja:</strong> Wybierz datę powyżej, a następnie kliknij na zielony (dostępny) termin w kalendarzu poniżej, aby go zarezerwować.</small>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if availability %}
+            <div class="calendar-grid" id="calendar-grid">
+                <!-- Nagłówki -->
+                <div class="calendar-header">Godzina</div>
+                <div class="calendar-header">Pon</div>
+                <div class="calendar-header">Wt</div>
+                <div class="calendar-header">Śr</div>
+                <div class="calendar-header">Czw</div>
+                <div class="calendar-header">Pt</div>
+                <div class="calendar-header">Sob</div>
+                <div class="calendar-header">Ndz</div>
+
+                <!-- Rzędy z czasami -->
+                {% for slot in time_slots %}
+                <div class="time-label">{{ slot }}</div>
+                {% for day in range(7) %}
+                    {% set is_available = availability.get(day, {}).get(slot, 0) %}
+                    <div class="time-slot {{ 'available' if is_available else 'unavailable' }}"
+                         data-day="{{ day }}"
+                         data-slot="{{ slot }}"
+                         data-available="{{ is_available }}"
+                         {% if is_available and session.get('user_id') and session.get('user_role') == 'user' %}
+                         onclick="bookSlot({{ day }}, '{{ slot }}')"
+                         {% endif %}>
+                        <div class="slot-status">{{ 'Dostępny' if is_available else 'Zajęty' }}</div>
+                        <div class="booking-info" id="booking-info-{{ day }}-{{ slot.replace(':', '').replace(' - ', '_') }}"></div>
+                    </div>
+                {% endfor %}
+                {% endfor %}
+            </div>
+
+            <div class="calendar-legend">
+                <div class="legend-item">
+                    <div class="legend-color legend-available"></div>
+                    <span>Dostępny</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color legend-unavailable"></div>
+                    <span>Zajęty</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color legend-booked"></div>
+                    <span>Zarezerwowany</span>
+                </div>
+                {% if session.get('user_id') %}
+                <div class="legend-item">
+                    <div class="legend-color legend-my-booking"></div>
+                    <span>Moja rezerwacja</span>
+                </div>
+                {% endif %}
+            </div>
+            {% else %}
+            <div class="no-calendar">
+                <p>Nauczyciel nie ustawił jeszcze swojego kalendarza dostępności.</p>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <div class="links">
+            <a href="{{ url_for('index') }}">Powrót do mapy</a>
+            {% if session.get('user_id') %}
+            <a href="{{ url_for('bookings') }}">Moje rezerwacje</a>
+            {% endif %}
+
+            {% if session.get('user_role') == 'admin' %}
+                <a href="{{ url_for('edit_pin', pin_id=pin.id) }}" class="edit-button">Edytuj pinezkę</a>
+            {% elif session.get('user_role') in ['teacher', 'regional_teacher'] and pin.created_by == session.get('user_id') %}
+                <a href="{{ url_for('edit_pin', pin_id=pin.id) }}" class="edit-button">Edytuj pinezkę</a>
+            {% elif session.get('user_role') == 'regional_teacher' and session.get('user_voivodeship') and pin.region.lower() == session.get('user_voivodeship').lower() %}
+                <a href="{{ url_for('edit_pin', pin_id=pin.id) }}" class="edit-button">Edytuj pinezkę</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Modal rezerwacji -->
+    <div id="bookingModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">Rezerwacja terminu</div>
+                <span class="close" onclick="closeBookingModal()">&times;</span>
+            </div>
+            <div id="booking-alert"></div>
+            <form id="booking-form">
+                <div class="form-group">
+                    <label>Termin:</label>
+                    <div id="booking-slot-info" style="padding: 8px; background-color: #f8f9fa; border-radius: 4px; font-weight: bold;"></div>
+                </div>
+                <div class="form-group">
+                    <label for="booking-notes">Notatki (opcjonalne):</label>
+                    <textarea id="booking-notes" placeholder="Dodatkowe informacje o spotkaniu..."></textarea>
+                </div>
+                <div style="text-align: right;">
+                    <button type="button" class="btn btn-primary" onclick="confirmBooking()">Rezerwuj</button>
+                    <button type="button" class="btn" onclick="closeBookingModal()">Anuluj</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
+    <script>
+        // Inicjalizacja mapy wycentrowanej na pinezce
+        const map = L.map('map').setView([{{ pin.lat }}, {{ pin.lng }}], 15);
+
+        // Dodanie warstwy kafelków OpenStreetMap
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 18,
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Dodanie markera dla pinezki
+        const marker = L.marker([{{ pin.lat }}, {{ pin.lng }}]).addTo(map);
+
+        // Popup z informacjami
+        marker.bindPopup(`
+            <div>
+                <b>{{ pin.title }}</b><br>
+                <em>{{ pin.city }}, {{ pin.region }}</em><br>
+                <small>{{ pin.address }}</small><br>
+                <small><strong>Utworzona przez:</strong> {{ pin.creator }}</small>
+            </div>
+        `).openPopup();
+
+        // Zmienne globalne dla rezerwacji
+        let selectedDay = null;
+        let selectedSlot = null;
+        let bookings = [];
+
+        // Funkcje rezerwacji
+        function getDayName(dayNum) {
+            const days = ['Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek', 'Sobota', 'Niedziela'];
+            return days[dayNum];
+        }
+
+        function bookSlot(day, slot) {
+            {% if not session.get('user_id') %}
+            alert('Musisz być zalogowany, aby dokonać rezerwacji');
+            window.location.href = '{{ url_for("login") }}';
+            return;
+            {% endif %}
+
+            {% if session.get('user_role') != 'user' %}
+            return; // Tylko zwykli użytkownicy mogą rezerwować
+            {% endif %}
+
+            const bookingDate = document.getElementById('booking-date').value;
+            if (!bookingDate) {
+                alert('Najpierw wybierz datę rezerwacji powyżej kalendarza');
+                return;
+            }
+
+            // Sprawdź czy data nie jest w przeszłości
+            const selectedDate = new Date(bookingDate);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            if (selectedDate < today) {
+                alert('Nie można zarezerwować terminu w przeszłości');
+                return;
+            }
+
+            selectedDay = day;
+            selectedSlot = slot;
+
+            // Ustaw informacje w modal
+            document.getElementById('booking-slot-info').innerHTML = `
+                ${getDayName(day)}, ${bookingDate}<br>
+                ${slot}
+            `;
+
+            // Wyczyść notatki
+            document.getElementById('booking-notes').value = '';
+
+            // Wyczyść alerty
+            document.getElementById('booking-alert').innerHTML = '';
+
+            // Pokaż modal
+            document.getElementById('bookingModal').style.display = 'block';
+        }
+
+        function closeBookingModal() {
+            document.getElementById('bookingModal').style.display = 'none';
+        }
+
+        function confirmBooking() {
+            const bookingDate = document.getElementById('booking-date').value;
+            const notes = document.getElementById('booking-notes').value;
+
+            fetch('/api/book_appointment', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    teacher_id: {{ pin.created_by }},
+                    day_of_week: selectedDay,
+                    time_slot: selectedSlot,
+                    booking_date: bookingDate,
+                    notes: notes
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    document.getElementById('booking-alert').innerHTML = `
+                        <div class="alert alert-error">${data.error}</div>
+                    `;
+                } else {
+                    document.getElementById('booking-alert').innerHTML = `
+                        <div class="alert alert-success">${data.message}</div>
+                    `;
+
+                    // Odśwież kalendarz po 2 sekundach
+                    setTimeout(() => {
+                        closeBookingModal();
+                        loadBookings();
+                    }, 2000);
+                }
+            })
+            .catch(error => {
+                document.getElementById('booking-alert').innerHTML = `
+                    <div class="alert alert-error">Wystąpił błąd podczas rezerwacji</div>
+                `;
+                console.error('Error:', error);
+            });
+        }
+
+        // Funkcja do ładowania rezerwacji
+        function loadBookings() {
+            const bookingDate = document.getElementById('booking-date')?.value;
+            if (!bookingDate) return;
+
+            fetch(`/api/teacher_bookings/{{ pin.created_by }}`)
+                .then(response => response.json())
+                .then(data => {
+                    bookings = data;
+                    updateCalendar();
+                })
+                .catch(error => console.error('Error loading bookings:', error));
+        }
+
+        // Funkcja aktualizująca kalendarz
+        function updateCalendar() {
+            const bookingDate = document.getElementById('booking-date')?.value;
+            if (!bookingDate) return;
+
+            // Resetuj wszystkie sloty
+            document.querySelectorAll('.time-slot').forEach(slot => {
+                const isAvailable = slot.dataset.available === '1';
+                const day = slot.dataset.day;
+                const timeSlot = slot.dataset.slot;
+
+                // Przywróć domyślny stan
+                slot.className = 'time-slot ' + (isAvailable ? 'available' : 'unavailable');
+                slot.querySelector('.slot-status').textContent = isAvailable ? 'Dostępny' : 'Zajęty';
+                slot.querySelector('.booking-info').textContent = '';
+            });
+
+            // Zaznacz zarezerwowane sloty
+            bookings.forEach(booking => {
+                if (booking.booking_date === bookingDate) {
+                    const day = booking.day_of_week;
+                    const slot = booking.time_slot;
+                    const slotId = `booking-info-${day}-${slot.replace(':', '').replace(' - ', '_')}`;
+                    const slotElement = document.querySelector(`[data-day="${day}"][data-slot="${slot}"]`);
+
+                    if (slotElement) {
+                        const isMyBooking = booking.student_id === {{ session.get('user_id', 0) }};
+
+                        slotElement.className = 'time-slot ' + (isMyBooking ? 'my-booking' : 'booked');
+                        slotElement.querySelector('.slot-status').textContent = isMyBooking ? 'Moja rezerwacja' : 'Zarezerwowany';
+
+                        if (!isMyBooking) {
+                            slotElement.querySelector('.booking-info').textContent = booking.student_name;
+                        }
+                    }
+                }
+            });
+        }
+
+        // Inicjalizacja - ładowanie rezerwacji po wybraniu daty
+        document.addEventListener('DOMContentLoaded', function() {
+            const bookingDateInput = document.getElementById('booking-date');
+            if (bookingDateInput) {
+                // Ustaw minimalną datę na dzisiaj
+                const today = new Date();
+                const todayStr = today.toISOString().split('T')[0];
+                bookingDateInput.min = todayStr;
+
+                // Jeśli nie ma wybranej daty, ustaw domyślnie dzisiaj
+                if (!bookingDateInput.value) {
+                    bookingDateInput.value = todayStr;
+                }
+
+                bookingDateInput.addEventListener('change', loadBookings);
+
+                // Załaduj rezerwacje na starcie
+                loadBookings();
+            }
+        });
+
+        // Zamknij modal po kliknięciu poza nim
+        window.onclick = function(event) {
+            const modal = document.getElementById('bookingModal');
+            if (event.target === modal) {
+                closeBookingModal();
+            }
+        }
+    </script>
+</body>
+</html>

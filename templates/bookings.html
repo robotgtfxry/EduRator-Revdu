@@ -1,0 +1,297 @@
+<!-- templates/bookings.html -->
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Moje Rezerwacje</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { padding: 20px; background-color: #f8f9fa; }
+        .container {
+            max-width: 1200px; margin: 0 auto; background-color: white;
+            padding: 20px; border-radius: 5px; box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h2 { margin-bottom: 30px; color: #343a40; }
+        h3 { margin-top: 30px; margin-bottom: 20px; color: #495057; }
+        .table-responsive { margin-bottom: 40px; }
+        .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.875rem; }
+        .completed { text-decoration: line-through; opacity: 0.7; }
+        .lesson-link { color: #0d6efd; text-decoration: none; }
+        .lesson-link:hover { text-decoration: underline; }
+        .status-badge { font-size: 0.8rem; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Moje Rezerwacje</h2>
+
+        {% if session.user_role in ['teacher', 'regional_teacher'] %}
+            <h3>Moje terminy</h3>
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Dzień</th>
+                            <th>Godzina</th>
+                            <th>Uczeń</th>
+                            <th>Email ucznia</th>
+                            <th>Status</th>
+                            <th>Akcje</th>
+                        </tr>
+                    </thead>
+                    <tbody id="teacherBookings">
+                        <!-- Teacher bookings will be loaded here via JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        {% endif %}
+
+        <h3>Moje rezerwacje</h3>
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Dzień</th>
+                        <th>Godzina</th>
+                        <th>Nauczyciel</th>
+                        <th>Email nauczyciela</th>
+                        <th>Status</th>
+                        <th>Akcje</th>
+                    </tr>
+                </thead>
+                <tbody id="studentBookings">
+                    <!-- Student bookings will be loaded here via JavaScript -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Cancel Booking Modal -->
+    <div class="modal fade" id="cancelModal" tabindex="-1" role="dialog" aria-labelledby="cancelModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="cancelModalLabel">Anuluj rezerwację</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="cancellationReason">Proszę podać powód odwołania:</label>
+                        <textarea class="form-control" id="cancellationReason" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Zamknij</button>
+                    <button type="button" class="btn btn-danger" id="confirmCancel">Anuluj rezerwację</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+    <script>
+        // Helper function to get day name
+        function get_day_name(day_of_week) {
+            const days = ['Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek', 'Sobota', 'Niedziela'];
+            return days[day_of_week] || 'Nieznany';
+        }
+
+        // Helper function to get status badge
+        function get_status_badge(status) {
+            const statusClass =
+                status === 'scheduled' ? 'bg-primary' :
+                status === 'completed' ? 'bg-success' :
+                status === 'cancelled' ? 'bg-danger' : 'bg-secondary';
+
+            return `<span class="badge ${statusClass} status-badge">${status}</span>`;
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // Load bookings when page loads
+            loadBookings();
+
+            // Set up cancel booking modal
+            let cancelBookingId = null;
+
+            // When cancel button is clicked in the table
+            $(document).on('click', '.cancel-booking-btn', function() {
+                cancelBookingId = $(this).data('booking-id');
+                $('#cancellationReason').val(''); // Reset reason field
+                $('#cancelModal').modal('show');
+            });
+
+            // When confirm cancel is clicked in the modal
+            $('#confirmCancel').click(function() {
+                if (cancelBookingId) {
+                    const reason = $('#cancellationReason').val();
+                    if (!reason) {
+                        alert('Proszę podać powód odwołania lekcji');
+                        return;
+                    }
+
+                    cancelBooking(cancelBookingId, reason);
+                    $('#cancelModal').modal('hide');
+                }
+            });
+        });
+
+        function loadBookings() {
+            // Load teacher bookings if user is a teacher
+            if (['teacher', 'regional_teacher'].includes('{{ session.user_role }}')) {
+                fetch('/api/teacher_bookings/{{ session.user_id }}')
+                    .then(response => response.json())
+                    .then(data => {
+                        const tbody = document.getElementById('teacherBookings');
+                        tbody.innerHTML = '';
+
+                        if (data.length === 0) {
+                            tbody.innerHTML = '<tr><td colspan="7" class="text-center">Brak nadchodzących rezerwacji</td></tr>';
+                            return;
+                        }
+
+                        data.forEach(booking => {
+                            const isCompleted = booking.status === 'completed' || booking.status === 'cancelled';
+                            const row = document.createElement('tr');
+                            if (isCompleted) row.classList.add('completed');
+
+                            row.innerHTML = `
+                                <td>${booking.booking_date}</td>
+                                <td>${get_day_name(booking.day_of_week)}</td>
+                                <td>${booking.time_slot}</td>
+                                <td>${booking.student_name}</td>
+                                <td>${booking.student_email}</td>
+                                <td>${get_status_badge(booking.status)}</td>
+                                <td>
+                                    <a href="/lesson_crm/${booking.id}" class="btn btn-sm btn-primary lesson-link">
+                                        <i class="fas fa-chalkboard-teacher"></i> Lekcja
+                                    </a>
+                                    ${booking.status === 'scheduled' ?
+                                        `<button class="btn btn-sm btn-danger cancel-booking-btn" data-booking-id="${booking.id}">
+                                            <i class="fas fa-times"></i> Anuluj
+                                        </button>` : ''
+                                    }
+                                </td>
+                            `;
+                            tbody.appendChild(row);
+                        });
+                    })
+                    .catch(error => {
+                        console.error('Error loading teacher bookings:', error);
+                        showAlert('Wystąpił błąd podczas ładowania rezerwacji', 'danger');
+                    });
+            }
+
+            // Load student bookings
+            fetch('/api/my_bookings')
+                .then(response => response.json())
+                .then(data => {
+                    const tbody = document.getElementById('studentBookings');
+                    tbody.innerHTML = '';
+
+                    if (data.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="7" class="text-center">Brak nadchodzących rezerwacji</td></tr>';
+                        return;
+                    }
+
+                    data.forEach(booking => {
+                        const isCompleted = booking.status === 'completed' || booking.status === 'cancelled';
+                        const row = document.createElement('tr');
+                        if (isCompleted) row.classList.add('completed');
+
+                        row.innerHTML = `
+                            <td>${booking.booking_date}</td>
+                            <td>${get_day_name(booking.day_of_week)}</td>
+                            <td>${booking.time_slot}</td>
+                            <td>${booking.teacher_name}</td>
+                            <td>${booking.teacher_email}</td>
+                            <td>${get_status_badge(booking.status)}</td>
+                            <td>
+                                <a href="/lesson/${booking.id}" class="btn btn-sm btn-primary lesson-link">
+                                    <i class="fas fa-chalkboard-teacher"></i> Lekcja
+                                </a>
+                                ${booking.status === 'scheduled' ?
+                                    `<button class="btn btn-sm btn-danger cancel-booking-btn" data-booking-id="${booking.id}">
+                                        <i class="fas fa-times"></i> Anuluj
+                                    </button>` : ''
+                                }
+                            </td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+                })
+                .catch(error => {
+                    console.error('Error loading student bookings:', error);
+                    showAlert('Wystąpił błąd podczas ładowania rezerwacji', 'danger');
+                });
+        }
+
+        function cancelBooking(bookingId, reason) {
+            fetch('/api/cancel_booking', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrf_token') // Add if you use CSRF protection
+                },
+                body: JSON.stringify({
+                    booking_id: bookingId,
+                    reason: reason
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert('Rezerwacja została anulowana', 'success');
+                    loadBookings();
+                } else {
+                    showAlert('Wystąpił błąd podczas anulowania rezerwacji: ' + (data.error || ''), 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error cancelling booking:', error);
+                showAlert('Wystąpił błąd podczas anulowania rezerwacji', 'danger');
+            });
+        }
+
+        function showAlert(message, type) {
+            // Remove existing alerts
+            const existingAlerts = document.querySelectorAll('.alert');
+            existingAlerts.forEach(alert => alert.remove());
+
+            // Create new alert
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+            alertDiv.role = 'alert';
+            alertDiv.style.marginTop = '20px';
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            `;
+
+            const container = document.querySelector('.container');
+            container.insertBefore(alertDiv, container.firstChild);
+
+            // Auto-dismiss after 5 seconds
+            setTimeout(() => {
+                $(alertDiv).alert('close');
+            }, 5000);
+        }
+
+        // Helper function to get cookie (if using CSRF protection)
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+        }
+    </script>
+</body>
+</html>

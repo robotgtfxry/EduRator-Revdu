@@ -1,0 +1,179 @@
+<!--templates/users.html-->
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zarządzanie użytkownikami</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .role-user { color: #6c757d; }
+        .role-teacher { color: #0d6efd; }
+        .role-regional_teacher { color: #6610f2; }
+        .role-admin { color: #dc3545; font-weight: bold; }
+        .table-responsive { max-height: 70vh; overflow-y: auto; }
+
+        /* Stylizacja nawigacji */
+        .navbar-custom {
+            background-color: #343a40;
+            padding: 0.5rem 1rem;
+        }
+        .navbar-brand, .nav-link {
+            color: rgba(255,255,255,.85) !important;
+        }
+        .nav-link:hover {
+            color: white !important;
+        }
+        .notification-badge {
+            position: relative;
+            top: -2px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Wbudowana nawigacja -->
+    <nav class="navbar navbar-expand-lg navbar-dark navbar-custom mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('index') }}">System Pinezki</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('index') }}">Strona główna</a>
+                    </li>
+                    {% if 'user_id' in session %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('profile') }}">Profil</a>
+                        </li>
+                        {% if session.get('user_role') in ['teacher', 'regional_teacher'] %}
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('bookings') }}">Moje rezerwacje</a>
+                            </li>
+                        {% endif %}
+                        {% if session.get('user_role') == 'admin' %}
+                            <li class="nav-item">
+                                <a class="nav-link active" href="{{ url_for('users') }}">Użytkownicy</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('messages') }}">Wiadomości</a>
+                            </li>
+                        {% endif %}
+                    {% endif %}
+                </ul>
+                <ul class="navbar-nav">
+                    {% if 'user_id' in session %}
+                        <li class="nav-item">
+                            <a class="nav-link position-relative" href="#">
+                                Powiadomienia
+                                {% if session.get('unread_notifications', 0) > 0 %}
+                                    <span class="badge bg-danger notification-badge">{{ session.unread_notifications }}</span>
+                                {% endif %}
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('logout') }}">Wyloguj</a>
+                        </li>
+                    {% else %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('login') }}">Zaloguj</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('register') }}">Zarejestruj</a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <h2 class="mb-4">Zarządzanie użytkownikami</h2>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="table-responsive mb-4">
+            <table class="table table-striped table-hover">
+                <thead class="table-light sticky-top">
+                    <tr>
+                        <th>ID</th>
+                        <th>Nazwa użytkownika</th>
+                        <th>Email</th>
+                        <th>Rola</th>
+                        <th>Województwo</th>
+                        <th>Nauczyciel regionalny</th>
+                        <th>Akcje</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td>{{ user.id }}</td>
+                        <td>{{ user.username }}</td>
+                        <td>{{ user.email }}</td>
+                        <td class="role-{{ user.role_name }}">
+                            {{ user.role_name | capitalize }}
+                            {% if user.role_name == 'admin' %} (Administrator){% endif %}
+                            {% if user.role_name == 'regional_teacher' %} (Nauczyciel regionalny){% endif %}
+                            {% if user.role_name == 'teacher' %} (Nauczyciel){% endif %}
+                        </td>
+                        <td>
+                            {% if user.voivodeship %}
+                                {{ user.voivodeship | capitalize }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if user.regional_teacher_name %}
+                                {{ user.regional_teacher_name }} ({{ user.regional_teacher_email }})
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group" role="group">
+                                <a href="{{ url_for('edit_user', user_id=user.id) }}" class="btn btn-sm btn-outline-primary">Edytuj</a>
+                                {% if user.role_name != 'admin' or user.id == session.user_id %}
+                                    <form method="POST" action="{{ url_for('delete_user', user_id=user.id) }}" onsubmit="return confirm('Czy na pewno chcesz usunąć tego użytkownika?');">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">Usuń</button>
+                                    </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="d-flex justify-content-between">
+            <a href="{{ url_for('index') }}" class="btn btn-secondary">Powrót</a>
+            <a href="{{ url_for('register') }}" class="btn btn-success">Dodaj nowego użytkownika</a>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Auto-dismiss alerts after 5 seconds
+        window.setTimeout(function() {
+            document.querySelectorAll('.alert').forEach(function(alert) {
+                alert.style.opacity = '0';
+                setTimeout(function() {
+                    alert.style.display = 'none';
+                }, 500);
+            });
+        }, 5000);
+    </script>
+</body>
+</html>

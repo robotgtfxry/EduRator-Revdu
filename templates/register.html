@@ -1,0 +1,253 @@
+<!--templates/register.html-->
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rejestracja - Mapa Pinezek</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 400px;
+            margin: 50px auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+            font-weight: bold;
+        }
+        input[type="text"], input[type="email"], input[type="password"], select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: #007cba;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #005a8b;
+        }
+        .links {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .links a {
+            color: #007cba;
+            text-decoration: none;
+            margin: 0 10px;
+        }
+        .links a:hover {
+            text-decoration: underline;
+        }
+        .flash {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .flash.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .flash.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .role-description {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #e7f3ff;
+            border-radius: 4px;
+            font-size: 14px;
+            color: #0066cc;
+            display: none;
+        }
+        .role-description.regional-teacher {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .required {
+            color: #d73527;
+        }
+        .field-info {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="flash {{ category }}">{{ message }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <h1>Rejestracja</h1>
+
+        <form method="POST">
+            <div class="form-group">
+                <label for="username">Nazwa użytkownika <span class="required">*</span>:</label>
+                <input type="text" id="username" name="username" required>
+            </div>
+
+            <div class="form-group">
+                <label for="email">Adres email <span class="required">*</span>:</label>
+                <input type="email" id="email" name="email" required>
+                <div class="field-info">Podaj prawidłowy adres email</div>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Hasło <span class="required">*</span>:</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+
+            <div class="form-group">
+                <label for="role">Rola <span class="required">*</span>:</label>
+                <select id="role" name="role" required onchange="handleRoleChange()">
+                    <option value="">Wybierz rolę</option>
+                    <option value="user">Użytkownik</option>
+                    <option value="teacher">Nauczyciel</option>
+                    <option value="regional_teacher">Nauczyciel Regionalny</option>
+                    <option value="admin">Administrator</option>
+                </select>
+
+                <div id="role-description-user" class="role-description">
+                    <strong>Użytkownik:</strong> Może przeglądać pinezki na mapie.
+                </div>
+                <div id="role-description-teacher" class="role-description">
+                    <strong>Nauczyciel:</strong> Po zalogowaniu będzie mógł dodać jedną pinezkę, którą później będzie mógł edytować. Musi być przypisany do nauczyciela regionalnego.
+                </div>
+                <div id="role-description-regional_teacher" class="role-description regional-teacher">
+                    <strong>Nauczyciel Regionalny:</strong> Może dodać jedną własną pinezkę oraz edytować i usuwać wszystkie pinezki w swoim województwie. Ma większe uprawnienia niż zwykły nauczyciel.
+                </div>
+                <div id="role-description-admin" class="role-description">
+                    <strong>Administrator:</strong> Może dodawać, edytować i usuwać wszystkie pinezki oraz zarządzać użytkownikami.
+                </div>
+            </div>
+
+            <div class="form-group" id="voivodeship-group" style="display: none;">
+                <label for="voivodeship">Województwo <span id="voivodeship-required" class="required">*</span>:</label>
+                <select id="voivodeship" name="voivodeship">
+                    <option value="">Wybierz województwo</option>
+                    {% for voivodeship in voivodeships %}
+                        <option value="{{ voivodeship }}">{{ voivodeship|title }}</option>
+                    {% endfor %}
+                </select>
+                <div class="field-info" id="voivodeship-info"></div>
+            </div>
+
+            <div class="form-group" id="regional-teacher-group" style="display: none;">
+                <label for="regional_teacher_id">Nauczyciel Regionalny <span id="regional-teacher-required" class="required">*</span>:</label>
+                <select id="regional_teacher_id" name="regional_teacher_id">
+                    <option value="">Wybierz nauczyciela regionalnego</option>
+                    {% for teacher in regional_teachers %}
+                        <option value="{{ teacher.id }}">{{ teacher.username }} ({{ teacher.voivodeship|title if teacher.voivodeship else 'Brak województwa' }})</option>
+                    {% endfor %}
+                </select>
+                <div class="field-info" id="regional-teacher-info">Nauczyciel regionalny będzie Twoim przełożonym</div>
+                {% if not regional_teachers %}
+                    <div class="field-info" style="color: #d73527;">Brak dostępnych nauczycieli regionalnych. Skontaktuj się z administratorem.</div>
+                {% endif %}
+            </div>
+
+            <button type="submit">Zarejestruj się</button>
+        </form>
+
+        <div class="links">
+            <a href="{{ url_for('login') }}">Masz już konto? Zaloguj się</a> |
+            <a href="{{ url_for('index') }}">Powrót do mapy</a>
+        </div>
+    </div>
+
+    <script>
+        function handleRoleChange() {
+            const roleSelect = document.getElementById('role');
+            const voivodeshipGroup = document.getElementById('voivodeship-group');
+            const voivodeshipSelect = document.getElementById('voivodeship');
+            const voivodeshipRequired = document.getElementById('voivodeship-required');
+            const voivodeshipInfo = document.getElementById('voivodeship-info');
+            const regionalTeacherGroup = document.getElementById('regional-teacher-group');
+            const regionalTeacherSelect = document.getElementById('regional_teacher_id');
+            const regionalTeacherRequired = document.getElementById('regional-teacher-required');
+
+            // Hide all role descriptions
+            const descriptions = document.querySelectorAll('.role-description');
+            descriptions.forEach(desc => desc.style.display = 'none');
+
+            // Reset all fields
+            voivodeshipGroup.style.display = 'none';
+            regionalTeacherGroup.style.display = 'none';
+            voivodeshipSelect.required = false;
+            regionalTeacherSelect.required = false;
+
+            // Show relevant role description and handle fields
+            if (roleSelect.value === 'user') {
+                document.getElementById('role-description-user').style.display = 'block';
+                voivodeshipGroup.style.display = 'block';
+                voivodeshipSelect.required = true;
+                voivodeshipRequired.style.display = 'inline';
+                voivodeshipInfo.textContent = 'Wymagane dla użytkowników';
+            } else if (roleSelect.value === 'teacher') {
+                document.getElementById('role-description-teacher').style.display = 'block';
+                regionalTeacherGroup.style.display = 'block';
+                regionalTeacherSelect.required = true;
+                regionalTeacherRequired.style.display = 'inline';
+            } else if (roleSelect.value === 'regional_teacher') {
+                document.getElementById('role-description-regional_teacher').style.display = 'block';
+                voivodeshipGroup.style.display = 'block';
+                voivodeshipSelect.required = true;
+                voivodeshipRequired.style.display = 'inline';
+                voivodeshipInfo.textContent = 'Wymagane dla nauczycieli regionalnych - określa region uprawnień';
+            } else if (roleSelect.value === 'admin') {
+                document.getElementById('role-description-admin').style.display = 'block';
+                voivodeshipGroup.style.display = 'block';
+                voivodeshipSelect.required = false;
+                voivodeshipRequired.style.display = 'none';
+                voivodeshipInfo.textContent = 'Opcjonalne dla administratorów';
+            }
+        }
+
+        // Initialize form state on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            handleRoleChange();
+        });
+    </script>
+</body>
+</html>

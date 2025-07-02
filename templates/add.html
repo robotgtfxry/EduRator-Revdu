@@ -1,0 +1,552 @@
+<!--templates/add.html-->
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% if existing_pin %}Edytuj{% else %}Dodaj{% endif %} Pinezkę - Mapa Pinezek</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin=""/>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 600px;
+            margin: 20px auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+            font-weight: bold;
+        }
+        input[type="text"], textarea, input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        textarea {
+            height: 100px;
+            resize: vertical;
+        }
+        .coords-group {
+            display: flex;
+            gap: 10px;
+        }
+        .coords-group > div {
+            flex: 1;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: #007cba;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #005a8b;
+        }
+        .links {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .links a {
+            color: #007cba;
+            text-decoration: none;
+            margin: 0 10px;
+        }
+        .links a:hover {
+            text-decoration: underline;
+        }
+        .flash {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .flash.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .flash.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .teacher-info {
+            background-color: #e7f3ff;
+            border: 1px solid #b3d9ff;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            color: #0066cc;
+        }
+        .teacher-info h3 {
+            margin-top: 0;
+            color: #0066cc;
+        }
+        .help-text {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        #map {
+            height: 300px;
+            width: 100%;
+            margin: 20px 0;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+        }
+        .search-button {
+            background-color: #28a745;
+            margin-top: 10px;
+            width: auto;
+            padding: 8px 16px;
+            display: inline-block;
+        }
+        .search-button:hover {
+            background-color: #218838;
+        }
+        .location-button {
+            background-color: #17a2b8;
+            margin-top: 10px;
+            width: auto;
+            padding: 8px 16px;
+            display: inline-block;
+        }
+        .location-button:hover {
+            background-color: #138496;
+        }
+        .coords-display {
+            background-color: #e9ecef;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            font-family: monospace;
+        }
+        .status-message {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .status-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status-error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .hidden {
+            display: none;
+        }
+        .error-field {
+            border-color: #dc3545 !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="flash {{ category }}">{{ message }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <h1>{% if existing_pin %}Edytuj{% else %}Dodaj Nową{% endif %} Pinezkę</h1>
+
+        {% if is_teacher %}
+        <div class="teacher-info">
+            <h3>ℹ️ Informacja dla nauczyciela</h3>
+            {% if existing_pin %}
+                <p><strong>Edytujesz swoją pinezkę.</strong> Jako nauczyciel możesz mieć tylko jedną pinezkę na mapie. Zapisanie zmian zaktualizuje Twoją istniejącą lokalizację.</p>
+            {% else %}
+                <p><strong>Dodajesz swoją pierwszą pinezkę.</strong> Jako nauczyciel możesz mieć tylko jedną pinezkę na mapie. Jeśli później dodasz kolejną, zastąpi ona tę obecną.</p>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <form method="POST" id="pinForm">
+            <div class="form-group">
+                <label for="title">Tytuł:</label>
+                <input type="text" id="title" name="title" value="{{ existing_pin.title if existing_pin else '' }}" required>
+                <div class="help-text">Nazwa Twojej szkoły lub instytucji</div>
+            </div>
+
+            <div class="form-group">
+                <label for="description">Opis:</label>
+                <textarea id="description" name="description" required>{{ existing_pin.description if existing_pin else '' }}</textarea>
+                <div class="help-text">Opisz swoją szkołę lub instytucję</div>
+            </div>
+
+            <div class="form-group">
+                <label for="region">Województwo:</label>
+                <input type="text" id="region" name="region" value="{{ existing_pin.region if existing_pin else '' }}" required>
+                <div class="help-text">np. Mazowieckie, Małopolskie</div>
+            </div>
+
+            <div class="form-group">
+                <label for="city">Miasto:</label>
+                <input type="text" id="city" name="city" value="{{ existing_pin.city if existing_pin else '' }}" required>
+            </div>
+
+            <div class="form-group">
+                <label for="address">Adres:</label>
+                <input type="text" id="address" name="address" value="{{ existing_pin.address if existing_pin else '' }}" required placeholder="np. Plac Zamkowy 4, Warszawa">
+                <button type="button" class="search-button" onclick="searchAddress()">🔍 Znajdź na mapie</button>
+                <button type="button" class="location-button" onclick="useMyLocation()">📍 Użyj mojej lokalizacji</button>
+                <div class="help-text">Wpisz pełny adres i kliknij "Znajdź na mapie" lub użyj swojej aktualnej lokalizacji</div>
+            </div>
+
+            <div id="statusMessage" class="hidden"></div>
+
+            <div id="mapContainer" class="{% if not existing_pin %}hidden{% endif %}">
+                <h3>Sprawdź lokalizację na mapie:</h3>
+                <div id="map"></div>
+                <div class="help-text">
+                    ✓ Kliknij na mapie, aby poprawić lokalizację<br>
+                    ✓ Przeciągnij marker, aby dokładnie ustawić pinezkę<br>
+                    🏠 Kliknięcie na mapie automatycznie uzupełni adres, jeśli pola są puste
+                </div>
+            </div>
+
+            <div id="coordsDisplay" class="{% if not existing_pin %}hidden{% endif %}">
+                <div class="coords-display">
+                    <strong>Wybrane współrzędne:</strong><br>
+                    Szerokość: <span id="latDisplay">{{ existing_pin.lat if existing_pin else '-' }}</span><br>
+                    Długość: <span id="lngDisplay">{{ existing_pin.lng if existing_pin else '-' }}</span>
+                </div>
+            </div>
+
+            <input type="hidden" id="lat" name="lat" value="{{ existing_pin.lat if existing_pin else '' }}">
+            <input type="hidden" id="lng" name="lng" value="{{ existing_pin.lng if existing_pin else '' }}">
+
+            <button type="submit" id="submitBtn" class="{% if not existing_pin %}hidden{% endif %}">
+                {% if existing_pin %}Zaktualizuj Pinezkę{% else %}Dodaj Pinezkę{% endif %}
+            </button>
+        </form>
+
+        <div class="links">
+            <a href="{{ url_for('index') }}">Powrót do mapy</a>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
+    <script>
+        let map;
+        let marker;
+        let currentLat, currentLng;
+
+        // Initialize with existing pin data if available
+        {% if existing_pin %}
+            document.addEventListener('DOMContentLoaded', function() {
+                currentLat = {{ existing_pin.lat }};
+                currentLng = {{ existing_pin.lng }};
+                initMap(currentLat, currentLng);
+            });
+        {% endif %}
+
+        // Funkcje pomocnicze
+        function showStatus(message, isError = false) {
+            const statusDiv = document.getElementById('statusMessage');
+            statusDiv.className = isError ? 'status-message status-error' : 'status-message status-success';
+            statusDiv.textContent = message;
+            statusDiv.classList.remove('hidden');
+        }
+
+        function hideStatus() {
+            document.getElementById('statusMessage').classList.add('hidden');
+        }
+
+        function highlightErrorFields() {
+            const requiredFields = ['title', 'description', 'region', 'city', 'address'];
+            requiredFields.forEach(fieldId => {
+                const field = document.getElementById(fieldId);
+                if (!field.value.trim()) {
+                    field.classList.add('error-field');
+                } else {
+                    field.classList.remove('error-field');
+                }
+            });
+        }
+
+        // Inicjalizacja mapy
+        function initMap(lat, lng) {
+            try {
+                if (!map) {
+                    map = L.map('map').setView([lat, lng], 15);
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        maxZoom: 18,
+                        attribution: '© OpenStreetMap contributors'
+                    }).addTo(map);
+
+                    // Kliknięcie na mapie
+                    map.on('click', async function(e) {
+                        updateMarker(e.latlng.lat, e.latlng.lng);
+                        await reverseGeocode(e.latlng.lat, e.latlng.lng);
+                    });
+                } else {
+                    map.setView([lat, lng], 15);
+                }
+
+                updateMarker(lat, lng);
+                document.getElementById('mapContainer').classList.remove('hidden');
+            } catch (error) {
+                console.error('Błąd inicjalizacji mapy:', error);
+                showStatus('Błąd podczas ładowania mapy. Spróbuj ponownie.', true);
+            }
+        }
+
+        // Aktualizacja markera
+        function updateMarker(lat, lng) {
+            if (marker) {
+                map.removeLayer(marker);
+            }
+
+            marker = L.marker([lat, lng], {
+                draggable: true,
+                autoPan: true
+            }).addTo(map);
+
+            marker.on('dragend', async function() {
+                const newPos = marker.getLatLng();
+                currentLat = newPos.lat;
+                currentLng = newPos.lng;
+
+                document.getElementById('latDisplay').textContent = currentLat.toFixed(6);
+                document.getElementById('lngDisplay').textContent = currentLng.toFixed(6);
+                document.getElementById('lat').value = currentLat;
+                document.getElementById('lng').value = currentLng;
+
+                await reverseGeocode(currentLat, currentLng);
+            });
+
+            marker.bindPopup('Kliknij i przeciągnij marker aby poprawić lokalizację').openPopup();
+
+            currentLat = lat;
+            currentLng = lng;
+
+            document.getElementById('latDisplay').textContent = lat.toFixed(6);
+            document.getElementById('lngDisplay').textContent = lng.toFixed(6);
+            document.getElementById('coordsDisplay').classList.remove('hidden');
+
+            document.getElementById('lat').value = lat;
+            document.getElementById('lng').value = lng;
+
+            document.getElementById('submitBtn').classList.remove('hidden');
+        }
+
+        // Reverse geocoding - pobieranie adresu ze współrzędnych
+        async function reverseGeocode(lat, lng) {
+            try {
+                const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&addressdetails=1&accept-language=pl`);
+                const data = await response.json();
+
+                if (data && data.address) {
+                    const addr = data.address;
+
+                    const cityField = document.getElementById('city');
+                    const regionField = document.getElementById('region');
+                    const addressField = document.getElementById('address');
+
+                    if (!cityField.value) {
+                        cityField.value = addr.city || addr.town || addr.village || '';
+                    }
+
+                    if (!regionField.value) {
+                        regionField.value = addr.state ? addr.state.replace('województwo ', '') : '';
+                    }
+
+                    let street = addr.road || '';
+                    if (addr.house_number) street += ' ' + addr.house_number;
+
+                    if (!addressField.value && street.trim()) {
+                        addressField.value = street.trim();
+                    }
+
+                    return data.display_name;
+                }
+            } catch (error) {
+                console.error('Błąd reverse geocoding:', error);
+                return null;
+            }
+        }
+
+        // Wyszukiwanie adresu
+        async function searchAddress() {
+            const address = document.getElementById('address').value.trim();
+            if (!address) {
+                showStatus('Proszę wpisać adres', true);
+                highlightErrorFields();
+                return;
+            }
+
+            showStatus('Szukam lokalizacji...');
+
+            const controller = new AbortController();
+            const timeout = setTimeout(() => {
+                controller.abort();
+            }, 5000);
+
+            try {
+                const fullAddress = buildFullAddress();
+                const response = await fetch(
+                    `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fullAddress)}&limit=1&countrycodes=pl`,
+                    { signal: controller.signal }
+                );
+
+                clearTimeout(timeout);
+
+                const data = await response.json();
+                if (data && data.length > 0) {
+                    const result = data[0];
+                    const lat = parseFloat(result.lat);
+                    const lng = parseFloat(result.lon);
+
+                    showStatus(`Znaleziono lokalizację: ${result.display_name}`);
+                    initMap(lat, lng);
+                } else {
+                    showStatus('Nie znaleziono lokalizacji. Spróbuj bardziej szczegółowego adresu.', true);
+                }
+            } catch (error) {
+                clearTimeout(timeout);
+                if (error.name === 'AbortError') {
+                    showStatus('Przekroczono czas oczekiwania na odpowiedź. Spróbuj ponownie.', true);
+                } else {
+                    showStatus('Błąd podczas wyszukiwania lokalizacji. Sprawdź połączenie internetowe.', true);
+                }
+            }
+        }
+
+        // Użycie geolokalizacji
+        function useMyLocation() {
+            if (!navigator.geolocation) {
+                showStatus('Twoja przeglądarka nie obsługuje geolokalizacji', true);
+                return;
+            }
+
+            showStatus('Pobieranie Twojej lokalizacji...');
+
+            navigator.geolocation.getCurrentPosition(
+                async (position) => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+
+                    initMap(lat, lng);
+                    const address = await reverseGeocode(lat, lng);
+
+                    if (address) {
+                        showStatus(`Znaleziono Twoją lokalizację: ${address}`);
+                    } else {
+                        showStatus('Użyto Twojej lokalizacji, ale nie udało się znaleźć adresu');
+                    }
+                },
+                (error) => {
+                    let errorMessage;
+                    switch(error.code) {
+                        case error.PERMISSION_DENIED:
+                            errorMessage = "Odmówiono dostępu do geolokalizacji. Sprawdź uprawnienia przeglądarki.";
+                            break;
+                        case error.POSITION_UNAVAILABLE:
+                            errorMessage = "Informacje o lokalizacji są niedostępne.";
+                            break;
+                        case error.TIMEOUT:
+                            errorMessage = "Przekroczono czas oczekiwania na lokalizację.";
+                            break;
+                        default:
+                            errorMessage = `Błąd pobierania lokalizacji: ${error.message}`;
+                    }
+                    showStatus(errorMessage, true);
+                },
+                {
+                    timeout: 10000,
+                    enableHighAccuracy: true
+                }
+            );
+        }
+
+        // Budowanie pełnego adresu
+        function buildFullAddress() {
+            const address = document.getElementById('address').value.trim();
+            const city = document.getElementById('city').value.trim();
+            const region = document.getElementById('region').value.trim();
+
+            let fullAddress = address;
+            if (city) fullAddress += ', ' + city;
+            if (region) fullAddress += ', ' + region;
+            fullAddress += ', Polska';
+
+            return fullAddress;
+        }
+
+        // Walidacja formularza
+        document.getElementById('pinForm').addEventListener('submit', function(e) {
+            const requiredFields = ['title', 'description', 'region', 'city', 'address'];
+            let isValid = true;
+
+            requiredFields.forEach(fieldId => {
+                const field = document.getElementById(fieldId);
+                if (!field.value.trim()) {
+                    field.classList.add('error-field');
+                    isValid = false;
+                } else {
+                    field.classList.remove('error-field');
+                }
+            });
+
+            if (!currentLat || !currentLng) {
+                showStatus('Proszę najpierw znaleźć lokalizację na mapie', true);
+                isValid = false;
+            }
+
+            if (!isValid) {
+                e.preventDefault();
+                showStatus('Proszę wypełnić wszystkie wymagane pola', true);
+                highlightErrorFields();
+                return false;
+            }
+        });
+
+        // Automatyczne wyszukiwanie po Enter
+        document.getElementById('address').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                searchAddress();
+            }
+        });
+    </script>
+</body>
+</html>
