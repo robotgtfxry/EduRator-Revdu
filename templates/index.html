@@ -561,6 +561,36 @@
             margin-bottom: 15px;
         }
 
+        /* Style dla zdjęcia profilowego w nav barze */
+        .profile-picture-container {
+            margin-left: 15px;
+        }
+
+        .profile-picture {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid white;
+            transition: transform 0.3s;
+        }
+
+        .profile-picture:hover {
+            transform: scale(1.1);
+        }
+
+        .default-profile-picture {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: #ddd;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+            border: 2px solid white;
+        }
+
         /* Responsive styles for better mobile experience */
         @media (max-width: 768px) {
             .teacher-card {
@@ -618,6 +648,21 @@
                         <a href="#" class="view-all">Zobacz wszystkie</a>
                     </div>
                 </div>
+
+                <!-- Zdjęcie profilowe -->
+                <div class="profile-picture-container">
+                    <a href="{{ url_for('profile') }}">
+                        {% if user_profile_picture %}
+                            <img src="{{ url_for('static', filename='profile_pictures/' + user_profile_picture) }}"
+                                 alt="Profile" class="profile-picture">
+                        {% else %}
+                            <div class="default-profile-picture">
+                                <i class="fas fa-user"></i>
+                            </div>
+                        {% endif %}
+                    </a>
+                </div>
+
                 <a href="{{ url_for('logout') }}">Wyloguj</a>
             {% endif %}
         </div>
