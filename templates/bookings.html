@@ -21,11 +21,91 @@
         .lesson-link { color: #0d6efd; text-decoration: none; }
         .lesson-link:hover { text-decoration: underline; }
         .status-badge { font-size: 0.8rem; }
+
+        /* Stats Panel Styles */
+        .stats-panel {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .stats-card {
+            text-align: center;
+            padding: 15px;
+            border-radius: 8px;
+            background-color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            transition: transform 0.3s ease;
+            height: 100%;
+        }
+        .stats-card:hover {
+            transform: translateY(-5px);
+        }
+        .stats-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .stats-label {
+            font-size: 1rem;
+            color: #6c757d;
+        }
+        .stats-icon {
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+        .stats-primary { color: #0d6efd; }
+        .stats-success { color: #198754; }
+        .stats-danger { color: #dc3545; }
+        .stats-info { color: #0dcaf0; }
     </style>
 </head>
 <body>
     <div class="container">
         <h2>Moje Rezerwacje</h2>
+
+        <!-- Stats Panel -->
+        <div class="stats-panel">
+            <div class="row text-center">
+                <div class="col-md-3 mb-4">
+                    <div class="stats-card">
+                        <div class="stats-icon stats-primary">
+                            <i class="fas fa-chalkboard-teacher"></i>
+                        </div>
+                        <div class="stats-number" id="total-lessons">0</div>
+                        <div class="stats-label">Wszystkie lekcje</div>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-4">
+                    <div class="stats-card">
+                        <div class="stats-icon stats-success">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div class="stats-number" id="completed-lessons">0</div>
+                        <div class="stats-label">Przeprowadzone</div>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-4">
+                    <div class="stats-card">
+                        <div class="stats-icon stats-danger">
+                            <i class="fas fa-times-circle"></i>
+                        </div>
+                        <div class="stats-number" id="cancelled-lessons">0</div>
+                        <div class="stats-label">Odwołane</div>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-4">
+                    <div class="stats-card">
+                        <div class="stats-icon stats-info">
+                            <i class="fas fa-calendar-check"></i>
+                        </div>
+                        <div class="stats-number" id="upcoming-lessons">0</div>
+                        <div class="stats-label">Nadchodzące</div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         {% if session.user_role in ['teacher', 'regional_teacher'] %}
             <h3>Moje terminy</h3>
@@ -115,7 +195,8 @@
         }
 
         document.addEventListener('DOMContentLoaded', function() {
-            // Load bookings when page loads
+            // Load stats and bookings
+            loadStats();
             loadBookings();
 
             // Set up cancel booking modal
@@ -142,6 +223,20 @@
                 }
             });
         });
+
+        function loadStats() {
+            fetch('/api/booking_stats')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('total-lessons').textContent = data.total_lessons;
+                    document.getElementById('completed-lessons').textContent = data.completed;
+                    document.getElementById('cancelled-lessons').textContent = data.cancelled;
+                    document.getElementById('upcoming-lessons').textContent = data.upcoming;
+                })
+                .catch(error => {
+                    console.error('Error loading stats:', error);
+                });
+        }
 
         function loadBookings() {
             // Load teacher bookings if user is a teacher
@@ -249,6 +344,7 @@
             .then(data => {
                 if (data.success) {
                     showAlert('Rezerwacja została anulowana', 'success');
+                    loadStats(); // Refresh stats after cancellation
                     loadBookings();
                 } else {
                     showAlert('Wystąpił błąd podczas anulowania rezerwacji: ' + (data.error || ''), 'danger');
