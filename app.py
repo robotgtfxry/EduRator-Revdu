@@ -286,6 +286,7 @@ def index():
         user_profile_picture=user_profile_picture  # Dodane
     )
 
+
 @app.route("/api/booking_stats", methods=["GET"])
 def get_booking_stats():
     if "user_id" not in session:
@@ -297,47 +298,42 @@ def get_booking_stats():
 
     stats = {
         "total_lessons": 0,
+        "scheduled": 0,
         "completed": 0,
-        "cancelled": 0,
-        "upcoming": 0
+        "cancelled": 0
     }
 
     try:
         # Determine which column to use based on role
-        column = "teacher_id" if user_role in ["teacher", "regional_teacher"] else "student_id"
+        if user_role in ["teacher", "regional_teacher"]:
+            column = "teacher_id"
+        else:
+            column = "student_id"
 
         # Total lessons
         total_query = f"SELECT COUNT(*) as count FROM bookings WHERE {column} = ?"
         total_row = db.execute(total_query, (user_id,)).fetchone()
         stats["total_lessons"] = total_row["count"] if total_row else 0
 
-        # Completed lessons
-        completed_query = f"SELECT COUNT(*) as count FROM bookings WHERE {column} = ? AND status = 'completed'"
-        completed_row = db.execute(completed_query, (user_id,)).fetchone()
-        stats["completed"] = completed_row["count"] if completed_row else 0
+        # Get all bookings for the user
+        bookings_query = f"SELECT status FROM bookings WHERE {column} = ?"
+        bookings = db.execute(bookings_query, (user_id,)).fetchall()
 
-        # Cancelled lessons
-        cancelled_query = f"SELECT COUNT(*) as count FROM bookings WHERE {column} = ? AND status = 'cancelled'"
-        cancelled_row = db.execute(cancelled_query, (user_id,)).fetchone()
-        stats["cancelled"] = cancelled_row["count"] if cancelled_row else 0
-
-        # Upcoming lessons (scheduled and not completed/cancelled)
-        upcoming_query = f"""
-            SELECT COUNT(*) as count 
-            FROM bookings 
-            WHERE {column} = ? 
-            AND status = 'scheduled' 
-            AND booking_date >= date('now')
-        """
-        upcoming_row = db.execute(upcoming_query, (user_id,)).fetchone()
-        stats["upcoming"] = upcoming_row["count"] if upcoming_row else 0
+        # Count by status
+        for booking in bookings:
+            status = booking['status'].lower()
+            if status == 'scheduled':
+                stats["scheduled"] += 1
+            elif status == 'completed':
+                stats["completed"] += 1
+            elif status == 'cancelled':
+                stats["cancelled"] += 1
 
     except Exception as e:
         print(f"Error fetching booking stats: {e}")
         return jsonify({"error": "Failed to fetch statistics"}), 500
 
     return jsonify(stats)
-
 @app.route("/register", methods=["GET", "POST"])
 def register():
     db = get_db()

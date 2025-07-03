@@ -58,7 +58,13 @@
         .stats-primary { color: #0d6efd; }
         .stats-success { color: #198754; }
         .stats-danger { color: #dc3545; }
-        .stats-info { color: #0dcaf0; }
+        .stats-warning { color: #ffc107; }
+
+        /* Status badge colors */
+        .badge-scheduled { background-color: #0d6efd; }
+        .badge-completed { background-color: #198754; }
+        .badge-cancelled { background-color: #dc3545; }
+        .badge-other { background-color: #6c757d; }
     </style>
 </head>
 <body>
@@ -79,6 +85,15 @@
                 </div>
                 <div class="col-md-3 mb-4">
                     <div class="stats-card">
+                        <div class="stats-icon stats-warning">
+                            <i class="fas fa-calendar-check"></i>
+                        </div>
+                        <div class="stats-number" id="scheduled-lessons">0</div>
+                        <div class="stats-label">Zaplanowane</div>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-4">
+                    <div class="stats-card">
                         <div class="stats-icon stats-success">
                             <i class="fas fa-check-circle"></i>
                         </div>
@@ -93,15 +108,6 @@
                         </div>
                         <div class="stats-number" id="cancelled-lessons">0</div>
                         <div class="stats-label">Odwołane</div>
-                    </div>
-                </div>
-                <div class="col-md-3 mb-4">
-                    <div class="stats-card">
-                        <div class="stats-icon stats-info">
-                            <i class="fas fa-calendar-check"></i>
-                        </div>
-                        <div class="stats-number" id="upcoming-lessons">0</div>
-                        <div class="stats-label">Nadchodzące</div>
                     </div>
                 </div>
             </div>
@@ -186,10 +192,12 @@
 
         // Helper function to get status badge
         function get_status_badge(status) {
+            // Normalize status to lowercase for comparison
+            const statusLower = status.toLowerCase();
             const statusClass =
-                status === 'scheduled' ? 'bg-primary' :
-                status === 'completed' ? 'bg-success' :
-                status === 'cancelled' ? 'bg-danger' : 'bg-secondary';
+                statusLower === 'scheduled' || statusLower === 'zaplanowana' ? 'badge-scheduled' :
+                statusLower === 'completed' || statusLower === 'przeprowadzona' ? 'badge-completed' :
+                statusLower === 'cancelled' || statusLower === 'odwolana' ? 'badge-cancelled' : 'badge-other';
 
             return `<span class="badge ${statusClass} status-badge">${status}</span>`;
         }
@@ -226,15 +234,22 @@
 
         function loadStats() {
             fetch('/api/booking_stats')
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
                 .then(data => {
+                    console.log('Stats data:', data); // Debug log
                     document.getElementById('total-lessons').textContent = data.total_lessons;
+                    document.getElementById('scheduled-lessons').textContent = data.scheduled;
                     document.getElementById('completed-lessons').textContent = data.completed;
                     document.getElementById('cancelled-lessons').textContent = data.cancelled;
-                    document.getElementById('upcoming-lessons').textContent = data.upcoming;
                 })
                 .catch(error => {
                     console.error('Error loading stats:', error);
+                    showAlert('Wystąpił błąd podczas ładowania statystyk', 'danger');
                 });
         }
 
@@ -253,7 +268,8 @@
                         }
 
                         data.forEach(booking => {
-                            const isCompleted = booking.status === 'completed' || booking.status === 'cancelled';
+                            const isCompleted = booking.status === 'completed' || booking.status === 'przeprowadzona' ||
+                                               booking.status === 'cancelled' || booking.status === 'odwolana';
                             const row = document.createElement('tr');
                             if (isCompleted) row.classList.add('completed');
 
@@ -268,7 +284,7 @@
                                     <a href="/lesson_crm/${booking.id}" class="btn btn-sm btn-primary lesson-link">
                                         <i class="fas fa-chalkboard-teacher"></i> Lekcja
                                     </a>
-                                    ${booking.status === 'scheduled' ?
+                                    ${booking.status === 'scheduled' || booking.status === 'zaplanowana' ?
                                         `<button class="btn btn-sm btn-danger cancel-booking-btn" data-booking-id="${booking.id}">
                                             <i class="fas fa-times"></i> Anuluj
                                         </button>` : ''
@@ -297,7 +313,8 @@
                     }
 
                     data.forEach(booking => {
-                        const isCompleted = booking.status === 'completed' || booking.status === 'cancelled';
+                        const isCompleted = booking.status === 'completed' || booking.status === 'przeprowadzona' ||
+                                           booking.status === 'cancelled' || booking.status === 'odwolana';
                         const row = document.createElement('tr');
                         if (isCompleted) row.classList.add('completed');
 
@@ -312,7 +329,7 @@
                                 <a href="/lesson/${booking.id}" class="btn btn-sm btn-primary lesson-link">
                                     <i class="fas fa-chalkboard-teacher"></i> Lekcja
                                 </a>
-                                ${booking.status === 'scheduled' ?
+                                ${booking.status === 'scheduled' || booking.status === 'zaplanowana' ?
                                     `<button class="btn btn-sm btn-danger cancel-booking-btn" data-booking-id="${booking.id}">
                                         <i class="fas fa-times"></i> Anuluj
                                     </button>` : ''
