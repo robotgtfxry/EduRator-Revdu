@@ -301,7 +301,9 @@ def get_booking_stats():
         "scheduled": 0,
         "completed": 0,
         "cancelled": 0,
-        "total_hours": 0.0  # Dodajemy nową statystykę - suma godzin
+        "total_hours": 0.0,
+        "completed_lessons": [],  # Nowe dane
+        "cancelled_lessons": []  # Nowe dane
     }
 
     try:
@@ -312,7 +314,15 @@ def get_booking_stats():
             column = "student_id"
 
         # Pobierz wszystkie rezerwacje
-        bookings = db.execute(f"SELECT status, time_slot FROM bookings WHERE {column} = ?", (user_id,)).fetchall()
+        bookings = db.execute(f"""
+            SELECT b.id, b.booking_date, b.day_of_week, b.time_slot, b.status, b.notes,
+                   u_student.username AS student_name, u_student.email AS student_email,
+                   u_teacher.username AS teacher_name, u_teacher.email AS teacher_email
+            FROM bookings b
+            LEFT JOIN users u_student ON b.student_id = u_student.id
+            LEFT JOIN users u_teacher ON b.teacher_id = u_teacher.id
+            WHERE {column} = ?
+        """, (user_id,)).fetchall()
 
         # Zlicz statystyki
         stats["total_lessons"] = len(bookings)
@@ -321,6 +331,14 @@ def get_booking_stats():
 
         for booking in bookings:
             status = booking["status"].lower()
+
+            # Dodaj do odpowiedniej listy
+            if status in ["completed", "przeprowadzona"]:
+                stats["completed_lessons"].append(dict(booking))
+            elif status in ["cancelled", "odwolana"]:
+                stats["cancelled_lessons"].append(dict(booking))
+
+            # Zliczanie statusów
             if status in ["scheduled", "zaplanowana"]:
                 stats["scheduled"] += 1
             elif status in ["completed", "przeprowadzona"]:

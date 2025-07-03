@@ -59,12 +59,34 @@
         .stats-warning { color: #ffc107; }
         .stats-success { color: #198754; }
         .stats-danger { color: #dc3545; }
+        .stats-info { color: #0dcaf0; }
 
         /* Status badge colors */
         .badge-scheduled { background-color: #0d6efd; }
         .badge-completed { background-color: #198754; }
         .badge-cancelled { background-color: #dc3545; }
         .badge-other { background-color: #6c757d; }
+
+        /* History table styles */
+        .history-table thead th {
+            background-color: #e9ecef;
+        }
+        .completed-table .badge {
+            background-color: #198754;
+        }
+        .cancelled-table .badge {
+            background-color: #dc3545;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .stats-card {
+                margin-bottom: 15px;
+            }
+            .stats-number {
+                font-size: 2rem;
+            }
+        }
     </style>
 </head>
 <body>
@@ -74,7 +96,7 @@
         <!-- Stats Panel -->
         <div class="stats-panel">
             <div class="row text-center">
-                <div class="col-md-3 mb-4">
+                <div class="col-lg col-md-4 col-sm-6 mb-4">
                     <div class="stats-card">
                         <div class="stats-icon stats-primary">
                             <i class="fas fa-chalkboard-teacher"></i>
@@ -83,7 +105,7 @@
                         <div class="stats-label">Wszystkie lekcje</div>
                     </div>
                 </div>
-                <div class="col-md-3 mb-4">
+                <div class="col-lg col-md-4 col-sm-6 mb-4">
                     <div class="stats-card">
                         <div class="stats-icon stats-warning">
                             <i class="fas fa-calendar-check"></i>
@@ -92,7 +114,7 @@
                         <div class="stats-label">Zaplanowane</div>
                     </div>
                 </div>
-                <div class="col-md-3 mb-4">
+                <div class="col-lg col-md-4 col-sm-6 mb-4">
                     <div class="stats-card">
                         <div class="stats-icon stats-success">
                             <i class="fas fa-check-circle"></i>
@@ -101,13 +123,22 @@
                         <div class="stats-label">Przeprowadzone</div>
                     </div>
                 </div>
-                <div class="col-md-3 mb-4">
+                <div class="col-lg col-md-4 col-sm-6 mb-4">
                     <div class="stats-card">
                         <div class="stats-icon stats-danger">
                             <i class="fas fa-times-circle"></i>
                         </div>
                         <div class="stats-number" id="cancelled-lessons">0</div>
                         <div class="stats-label">Odwołane</div>
+                    </div>
+                </div>
+                <div class="col-lg col-md-4 col-sm-6 mb-4">
+                    <div class="stats-card">
+                        <div class="stats-icon stats-info">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="stats-number" id="total-hours">0</div>
+                        <div class="stats-label">Łącznie godzin</div>
                     </div>
                 </div>
             </div>
@@ -151,6 +182,60 @@
                 </thead>
                 <tbody id="studentBookings">
                     <!-- Student bookings will be loaded here via JavaScript -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Historia lekcji - Przeprowadzone -->
+        <h3>Historia lekcji - Przeprowadzone</h3>
+        <div class="table-responsive">
+            <table class="table table-striped completed-table history-table">
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Dzień</th>
+                        <th>Godzina</th>
+                        <th>
+                            {% if session.user_role in ['teacher', 'regional_teacher'] %}
+                                Uczeń
+                            {% else %}
+                                Nauczyciel
+                            {% endif %}
+                        </th>
+                        <th>Email</th>
+                        <th>Czas trwania</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="completedLessons">
+                    <!-- Completed lessons will be loaded here via JavaScript -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Historia lekcji - Odwołane -->
+        <h3>Historia lekcji - Odwołane</h3>
+        <div class="table-responsive">
+            <table class="table table-striped cancelled-table history-table">
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Dzień</th>
+                        <th>Godzina</th>
+                        <th>
+                            {% if session.user_role in ['teacher', 'regional_teacher'] %}
+                                Uczeń
+                            {% else %}
+                                Nauczyciel
+                            {% endif %}
+                        </th>
+                        <th>Email</th>
+                        <th>Powód odwołania</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="cancelledLessons">
+                    <!-- Cancelled lessons will be loaded here via JavaScript -->
                 </tbody>
             </table>
         </div>
@@ -201,6 +286,32 @@
             return `<span class="badge ${statusClass} status-badge">${status}</span>`;
         }
 
+        // Helper function to calculate duration
+        function calculate_duration(time_slot) {
+            if (!time_slot) return "N/A";
+
+            const parts = time_slot.split(' - ');
+            if (parts.length !== 2) return "N/A";
+
+            try {
+                const start = new Date(`2000-01-01T${parts[0].trim()}:00`);
+                const end = new Date(`2000-01-01T${parts[1].trim()}:00`);
+
+                const diffMs = end - start;
+                const diffMins = Math.round(diffMs / 60000);
+
+                if (diffMins < 60) {
+                    return `${diffMins} minut`;
+                } else {
+                    const hours = Math.floor(diffMins / 60);
+                    const minutes = diffMins % 60;
+                    return `${hours} godz. ${minutes} min`;
+                }
+            } catch (e) {
+                return "N/A";
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
             // Load stats and bookings
             loadStats();
@@ -245,6 +356,83 @@
                     document.getElementById('scheduled-lessons').textContent = data.scheduled;
                     document.getElementById('completed-lessons').textContent = data.completed;
                     document.getElementById('cancelled-lessons').textContent = data.cancelled;
+                    document.getElementById('total-hours').textContent = data.total_hours;
+
+                    // Load completed lessons
+                    const completedBody = document.getElementById('completedLessons');
+                    completedBody.innerHTML = '';
+
+                    if (data.completed_lessons && data.completed_lessons.length > 0) {
+                        data.completed_lessons.forEach(lesson => {
+                            const row = document.createElement('tr');
+                            row.classList.add('completed');
+
+                            const duration = calculate_duration(lesson.time_slot);
+
+                            if (['teacher', 'regional_teacher'].includes('{{ session.user_role }}')) {
+                                row.innerHTML = `
+                                    <td>${lesson.booking_date}</td>
+                                    <td>${get_day_name(lesson.day_of_week)}</td>
+                                    <td>${lesson.time_slot}</td>
+                                    <td>${lesson.student_name}</td>
+                                    <td>${lesson.student_email}</td>
+                                    <td>${duration}</td>
+                                    <td>${get_status_badge(lesson.status)}</td>
+                                `;
+                            } else {
+                                row.innerHTML = `
+                                    <td>${lesson.booking_date}</td>
+                                    <td>${get_day_name(lesson.day_of_week)}</td>
+                                    <td>${lesson.time_slot}</td>
+                                    <td>${lesson.teacher_name}</td>
+                                    <td>${lesson.teacher_email}</td>
+                                    <td>${duration}</td>
+                                    <td>${get_status_badge(lesson.status)}</td>
+                                `;
+                            }
+
+                            completedBody.appendChild(row);
+                        });
+                    } else {
+                        completedBody.innerHTML = '<tr><td colspan="7" class="text-center">Brak przeprowadzonych lekcji</td></tr>';
+                    }
+
+                    // Load cancelled lessons
+                    const cancelledBody = document.getElementById('cancelledLessons');
+                    cancelledBody.innerHTML = '';
+
+                    if (data.cancelled_lessons && data.cancelled_lessons.length > 0) {
+                        data.cancelled_lessons.forEach(lesson => {
+                            const row = document.createElement('tr');
+                            row.classList.add('completed');
+
+                            if (['teacher', 'regional_teacher'].includes('{{ session.user_role }}')) {
+                                row.innerHTML = `
+                                    <td>${lesson.booking_date}</td>
+                                    <td>${get_day_name(lesson.day_of_week)}</td>
+                                    <td>${lesson.time_slot}</td>
+                                    <td>${lesson.student_name}</td>
+                                    <td>${lesson.student_email}</td>
+                                    <td>${lesson.notes || 'Brak powodu'}</td>
+                                    <td>${get_status_badge(lesson.status)}</td>
+                                `;
+                            } else {
+                                row.innerHTML = `
+                                    <td>${lesson.booking_date}</td>
+                                    <td>${get_day_name(lesson.day_of_week)}</td>
+                                    <td>${lesson.time_slot}</td>
+                                    <td>${lesson.teacher_name}</td>
+                                    <td>${lesson.teacher_email}</td>
+                                    <td>${lesson.notes || 'Brak powodu'}</td>
+                                    <td>${get_status_badge(lesson.status)}</td>
+                                `;
+                            }
+
+                            cancelledBody.appendChild(row);
+                        });
+                    } else {
+                        cancelledBody.innerHTML = '<tr><td colspan="7" class="text-center">Brak odwołanych lekcji</td></tr>';
+                    }
                 })
                 .catch(error => {
                     console.error('Error loading stats:', error);

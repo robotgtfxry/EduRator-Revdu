@@ -612,6 +612,8 @@
                 Witaj, <strong>{{ session.get('username') }}</strong> ({{ role }}) |
                 <a href="{{ url_for('index') }}">Strona główna</a>
                 <a href="{{ url_for('online_teachers') }}">Nauczyciele Online</a>
+                <!-- Dodany przycisk Moje Rezerwacje -->
+                <a href="{{ url_for('bookings') }}">Moje Rezerwacje</a>
                 {% if role in ['admin', 'teacher'] %}
                     <a href="{{ url_for('add') }}">Dodaj Pinezkę</a>
                 {% endif %}
