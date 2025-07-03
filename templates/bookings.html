@@ -56,9 +56,9 @@
             margin-bottom: 10px;
         }
         .stats-primary { color: #0d6efd; }
+        .stats-warning { color: #ffc107; }
         .stats-success { color: #198754; }
         .stats-danger { color: #dc3545; }
-        .stats-warning { color: #ffc107; }
 
         /* Status badge colors */
         .badge-scheduled { background-color: #0d6efd; }
@@ -192,7 +192,6 @@
 
         // Helper function to get status badge
         function get_status_badge(status) {
-            // Normalize status to lowercase for comparison
             const statusLower = status.toLowerCase();
             const statusClass =
                 statusLower === 'scheduled' || statusLower === 'zaplanowana' ? 'badge-scheduled' :
@@ -241,7 +240,7 @@
                     return response.json();
                 })
                 .then(data => {
-                    console.log('Stats data:', data); // Debug log
+                    console.log('Stats data:', data);
                     document.getElementById('total-lessons').textContent = data.total_lessons;
                     document.getElementById('scheduled-lessons').textContent = data.scheduled;
                     document.getElementById('completed-lessons').textContent = data.completed;
@@ -257,7 +256,12 @@
             // Load teacher bookings if user is a teacher
             if (['teacher', 'regional_teacher'].includes('{{ session.user_role }}')) {
                 fetch('/api/teacher_bookings/{{ session.user_id }}')
-                    .then(response => response.json())
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Failed to load teacher bookings');
+                        }
+                        return response.json();
+                    })
                     .then(data => {
                         const tbody = document.getElementById('teacherBookings');
                         tbody.innerHTML = '';
@@ -268,8 +272,10 @@
                         }
 
                         data.forEach(booking => {
-                            const isCompleted = booking.status === 'completed' || booking.status === 'przeprowadzona' ||
-                                               booking.status === 'cancelled' || booking.status === 'odwolana';
+                            const statusLower = booking.status.toLowerCase();
+                            const isCompleted = statusLower === 'completed' || statusLower === 'przeprowadzona' ||
+                                               statusLower === 'cancelled' || statusLower === 'odwolana';
+
                             const row = document.createElement('tr');
                             if (isCompleted) row.classList.add('completed');
 
@@ -284,7 +290,7 @@
                                     <a href="/lesson_crm/${booking.id}" class="btn btn-sm btn-primary lesson-link">
                                         <i class="fas fa-chalkboard-teacher"></i> Lekcja
                                     </a>
-                                    ${booking.status === 'scheduled' || booking.status === 'zaplanowana' ?
+                                    ${statusLower === 'scheduled' || statusLower === 'zaplanowana' ?
                                         `<button class="btn btn-sm btn-danger cancel-booking-btn" data-booking-id="${booking.id}">
                                             <i class="fas fa-times"></i> Anuluj
                                         </button>` : ''
@@ -302,7 +308,12 @@
 
             // Load student bookings
             fetch('/api/my_bookings')
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Failed to load student bookings');
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     const tbody = document.getElementById('studentBookings');
                     tbody.innerHTML = '';
@@ -313,8 +324,10 @@
                     }
 
                     data.forEach(booking => {
-                        const isCompleted = booking.status === 'completed' || booking.status === 'przeprowadzona' ||
-                                           booking.status === 'cancelled' || booking.status === 'odwolana';
+                        const statusLower = booking.status.toLowerCase();
+                        const isCompleted = statusLower === 'completed' || statusLower === 'przeprowadzona' ||
+                                           statusLower === 'cancelled' || statusLower === 'odwolana';
+
                         const row = document.createElement('tr');
                         if (isCompleted) row.classList.add('completed');
 
@@ -329,7 +342,7 @@
                                 <a href="/lesson/${booking.id}" class="btn btn-sm btn-primary lesson-link">
                                     <i class="fas fa-chalkboard-teacher"></i> Lekcja
                                 </a>
-                                ${booking.status === 'scheduled' || booking.status === 'zaplanowana' ?
+                                ${statusLower === 'scheduled' || statusLower === 'zaplanowana' ?
                                     `<button class="btn btn-sm btn-danger cancel-booking-btn" data-booking-id="${booking.id}">
                                         <i class="fas fa-times"></i> Anuluj
                                     </button>` : ''
@@ -357,7 +370,12 @@
                     reason: reason
                 })
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
             .then(data => {
                 if (data.success) {
                     showAlert('Rezerwacja została anulowana', 'success');

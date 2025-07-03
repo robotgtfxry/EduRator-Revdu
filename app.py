@@ -300,7 +300,8 @@ def get_booking_stats():
         "total_lessons": 0,
         "scheduled": 0,
         "completed": 0,
-        "cancelled": 0
+        "cancelled": 0,
+        "total_hours": 0.0  # Dodajemy nową statystykę - suma godzin
     }
 
     try:
@@ -310,30 +311,52 @@ def get_booking_stats():
         else:
             column = "student_id"
 
-        # Total lessons
-        total_query = f"SELECT COUNT(*) as count FROM bookings WHERE {column} = ?"
-        total_row = db.execute(total_query, (user_id,)).fetchone()
-        stats["total_lessons"] = total_row["count"] if total_row else 0
+        # Pobierz wszystkie rezerwacje
+        bookings = db.execute(f"SELECT status, time_slot FROM bookings WHERE {column} = ?", (user_id,)).fetchall()
 
-        # Get all bookings for the user
-        bookings_query = f"SELECT status FROM bookings WHERE {column} = ?"
-        bookings = db.execute(bookings_query, (user_id,)).fetchall()
+        # Zlicz statystyki
+        stats["total_lessons"] = len(bookings)
 
-        # Count by status
+        total_hours = 0.0
+
         for booking in bookings:
-            status = booking['status'].lower()
-            if status == 'scheduled':
+            status = booking["status"].lower()
+            if status in ["scheduled", "zaplanowana"]:
                 stats["scheduled"] += 1
-            elif status == 'completed':
+            elif status in ["completed", "przeprowadzona"]:
                 stats["completed"] += 1
-            elif status == 'cancelled':
+
+                # Oblicz czas trwania lekcji
+                time_slot = booking["time_slot"]
+                parts = time_slot.split(' - ')
+                if len(parts) == 2:
+                    try:
+                        start_str = parts[0].strip()
+                        end_str = parts[1].strip()
+
+                        # Parsuj czas
+                        start_time = datetime.strptime(start_str, '%H:%M')
+                        end_time = datetime.strptime(end_str, '%H:%M')
+
+                        # Oblicz różnicę w godzinach
+                        duration = end_time - start_time
+                        duration_hours = duration.total_seconds() / 3600
+                        total_hours += duration_hours
+                    except ValueError as e:
+                        print(f"Błąd parsowania czasu: {time_slot}, {e}")
+            elif status in ["cancelled", "odwolana"]:
                 stats["cancelled"] += 1
 
+        # Zaokrąglij do 2 miejsc po przecinku
+        stats["total_hours"] = round(total_hours, 2)
+
     except Exception as e:
-        print(f"Error fetching booking stats: {e}")
-        return jsonify({"error": "Failed to fetch statistics"}), 500
+        print(f"Błąd podczas pobierania statystyk rezerwacji: {e}")
+        return jsonify({"error": "Nie udało się pobrać statystyk"}), 500
 
     return jsonify(stats)
+
+
 @app.route("/register", methods=["GET", "POST"])
 def register():
     db = get_db()
