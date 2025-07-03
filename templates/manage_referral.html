@@ -1,18 +1,57 @@
-<!--templates/manage_referral.html-->
+<!-- templates/manage_referral.html -->
 <!DOCTYPE html>
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
-    <title>Zarządzanie lekcjami</title>
+    <title>Zarządzanie lekcjami poleconymi</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .lesson-card {
+            transition: all 0.3s ease;
+        }
+        .lesson-card.completed {
+            background-color: #e8f5e9;
+            border-left: 4px solid #4caf50;
+        }
+        .lesson-card.in-progress {
+            background-color: #fff8e1;
+            border-left: 4px solid #ffc107;
+        }
+        .progress-container {
+            position: relative;
+        }
+        .progress-label {
+            position: absolute;
+            width: 100%;
+            text-align: center;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 0 0 2px rgba(0,0,0,0.5);
+        }
+        .stats-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+        }
+        .stats-label {
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+        .progress-bar-stepped {
+            background: linear-gradient(90deg,
+                #4caf50 0%,
+                #4caf50 {{ (completed_referral_lessons/5)*100 }}%,
+                #e9ecef {{ (completed_referral_lessons/5)*100 }}%,
+                #e9ecef 100%);
+        }
+    </style>
 </head>
 <body>
     <div class="container py-4">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h1>
-                <i class="fas fa-tasks"></i>
-                Zarządzanie lekcjami
+                <i class="fas fa-gift"></i>
+                Zarządzanie lekcjami poleconymi
                 {% if link['all_completed'] %}
                     <span class="badge bg-success">Zakończono!</span>
                 {% endif %}
@@ -22,35 +61,99 @@
             </a>
         </div>
 
+        <div class="alert alert-primary">
+            <div class="d-flex align-items-center">
+                <i class="fas fa-info-circle fa-2x me-3"></i>
+                <div>
+                    <h5 class="mb-1">System automatycznego naliczania lekcji</h5>
+                    <p class="mb-0">
+                        Po wykonaniu <strong>5 lekcji</strong> przez klientów, nauczyciel otrzymuje <strong>5 lekcji poleconych</strong>.<br>
+                        <strong>Nie ma możliwości ręcznego oznaczania lekcji.</strong>
+                    </p>
+                </div>
+            </div>
+        </div>
+
         <div class="card mb-4">
             <div class="card-body">
                 <div class="row">
                     <div class="col-md-6">
-                        <h5>Szczegóły linku</h5>
-                        <p><strong>Link:</strong> <a href="{{ link['link'] }}" target="_blank">{{ link['link'] }}</a></p>
-                        <p><strong>Nauczyciel:</strong>
-                            {% if link['recipient_name'] %}
-                                {{ link['recipient_name'] }}
-                            {% else %}
-                                <span class="text-danger">Brak przypisanego nauczyciela</span>
-                            {% endif %}
-                        </p>
-                    </div>
-                    <div class="col-md-6">
-                        <h5>Statystyki</h5>
-                        <div class="progress mb-2" style="height: 25px;">
-                            {% set completed = [link['lesson1_completed'], link['lesson2_completed'],
-                                                link['lesson3_completed'], link['lesson4_completed'],
-                                                link['lesson5_completed']]|sum %}
-                            <div class="progress-bar" role="progressbar"
-                                 style="width: {{ (completed/5)*100 }}%;"
-                                 aria-valuenow="{{ completed }}"
-                                 aria-valuemin="0"
-                                 aria-valuemax="5">
-                                {{ completed }}/5 lekcji ukończonych
+                        <h5><i class="fas fa-link me-2"></i>Szczegóły linku</h5>
+                        <div class="mb-3">
+                            <label class="form-label text-muted small mb-1">Link polecający</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" value="{{ link['link'] }}" readonly>
+                                <button class="btn btn-outline-primary" onclick="copyToClipboard('{{ link['link'] }}')">
+                                    <i class="fas fa-copy"></i> Kopiuj
+                                </button>
                             </div>
                         </div>
-                        <p class="mb-0">Ostatnia aktualizacja: {{ link['created_at']|format_datetime }}</p>
+
+                        <div class="mb-3">
+                            <label class="form-label text-muted small mb-1">Nauczyciel</label>
+                            <p class="mb-0 fs-5">
+                                {% if link['recipient_name'] %}
+                                    <i class="fas fa-user-check text-success me-2"></i>{{ link['recipient_name'] }}
+                                {% else %}
+                                    <i class="fas fa-user-slash text-danger me-2"></i>Brak przypisanego nauczyciela
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <h5><i class="fas fa-chart-line me-2"></i>Statystyki</h5>
+
+                        <div class="mb-4">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span class="text-muted">Postęp klienta:</span>
+                                <span class="text-muted">
+                                    {% if client_lessons_count >= 5 %}
+                                        <span class="text-success">Ukończono 5/5 lekcji</span>
+                                    {% else %}
+                                        {{ client_lessons_count }}/5 lekcji
+                                    {% endif %}
+                                </span>
+                            </div>
+                            <div class="progress" style="height: 20px;">
+                                <div class="progress-bar bg-info"
+                                     style="width: {{ (client_lessons_count / 5) * 100 }}%;"
+                                     role="progressbar"
+                                     aria-valuenow="{{ client_lessons_count }}"
+                                     aria-valuemin="0"
+                                     aria-valuemax="5">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span class="text-muted">Lekcje polecone:</span>
+                                <span class="text-muted">
+                                    {% set completed = [link['lesson1_completed'], link['lesson2_completed'],
+                                                        link['lesson3_completed'], link['lesson4_completed'],
+                                                        link['lesson5_completed']]|sum %}
+                                    {{ completed }}/5 lekcji
+                                </span>
+                            </div>
+                            <div class="progress" style="height: 20px;">
+                                <div class="progress-bar-stepped"
+                                     role="progressbar"
+                                     style="width: 100%;">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <span class="text-muted small">Utworzono:</span>
+                                <p class="mb-0">{{ link['created_at']|format_datetime }}</p>
+                            </div>
+                            <div>
+                                <span class="text-muted small">Ostatnia aktualizacja:</span>
+                                <p class="mb-0">{{ link['updated_at']|format_datetime if link['updated_at'] else 'Automatyczna' }}</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -58,42 +161,77 @@
 
         <div class="card">
             <div class="card-header bg-primary text-white">
-                <h5 class="mb-0">Status lekcji</h5>
+                <h5 class="mb-0"><i class="fas fa-tasks me-2"></i>Status lekcji poleconych</h5>
             </div>
             <div class="card-body">
-                <form method="POST">
-                    <div class="row">
-                        {% for i in range(1,6) %}
-                        <div class="col-md-4 mb-3">
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox"
-                                       id="lesson{{ i }}" name="lesson{{ i }}" value="1"
-                                       {% if link['lesson%s_completed'|format(i)] %}checked{% endif %}>
-                                <label class="form-check-label" for="lesson{{ i }}">
-                                    <strong>Lekcja {{ i }}</strong>
-                                </label>
-                            </div>
-                            <div class="mt-1">
-                                <small class="text-muted">
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Status lekcji jest aktualizowany automatycznie po wykonaniu 5 lekcji przez klienta.
+                    Ręczna modyfikacja nie jest możliwa.
+                </div>
+
+                <div class="row g-3">
+                    {% for i in range(1,6) %}
+                    <div class="col-md-4">
+                        <div class="lesson-card card p-3 {% if link['lesson%s_completed'|format(i)] %}completed{% else %}in-progress{% endif %}">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>Lekcja polecona #{{ i }}</strong>
+                                </div>
+                                <span class="badge {% if link['lesson%s_completed'|format(i)] %}bg-success{% else %}bg-warning{% endif %} py-2 px-3">
                                     {% if link['lesson%s_completed'|format(i)] %}
-                                        <span class="text-success">Ukończono</span>
+                                        <i class="fas fa-check-circle me-1"></i> Aktywna
                                     {% else %}
-                                        <span class="text-danger">W trakcie</span>
+                                        <i class="fas fa-clock me-1"></i> Oczekuje
                                     {% endif %}
-                                </small>
+                                </span>
+                            </div>
+
+                            <div class="mt-3">
+                                <div class="text-muted small">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    {% if link['lesson%s_completed'|format(i)] %}
+                                        Aktywowana po wykonaniu 5 lekcji przez klienta
+                                    {% else %}
+                                        Będzie aktywna po wykonaniu 5 lekcji przez klienta
+                                    {% endif %}
+                                </div>
                             </div>
                         </div>
-                        {% endfor %}
                     </div>
+                    {% endfor %}
+                </div>
 
-                    <div class="d-grid mt-4">
-                        <button type="submit" class="btn btn-success btn-lg">
-                            <i class="fas fa-save"></i> Zapisz zmiany
-                        </button>
-                    </div>
-                </form>
+                <div class="mt-4 p-3 bg-light rounded">
+                    <h5><i class="fas fa-calculator me-2"></i> Jak działa system?</h5>
+                    <ul>
+                        <li>Klient musi wykonać <strong>5 lekcji</strong> z nauczycielem</li>
+                        <li>Po wykonaniu tych 5 lekcji, nauczyciel otrzymuje <strong>5 lekcji poleconych</strong></li>
+                        <li>System aktualizuje status automatycznie po zakończeniu 5 lekcji klienta</li>
+                        <li>Status jest aktualizowany w czasie rzeczywistym</li>
+                        <li>Ręczna modyfikacja statusu lekcji nie jest możliwa</li>
+                    </ul>
+                </div>
             </div>
         </div>
     </div>
+
+    <script>
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                const btn = event.currentTarget;
+                const originalHtml = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-check"></i> Skopiowano!';
+                btn.classList.remove('btn-outline-primary');
+                btn.classList.add('btn-success');
+
+                setTimeout(() => {
+                    btn.innerHTML = originalHtml;
+                    btn.classList.remove('btn-success');
+                    btn.classList.add('btn-outline-primary');
+                }, 2000);
+            });
+        }
+    </script>
 </body>
 </html>

@@ -697,6 +697,10 @@ def update_lesson_status():
             message = f"Status lekcji {booking_id} zmieniony na '{status}' przez ucznia"
             target = booking["teacher_id"]
 
+        # NEW: Update referral lessons if status is "przeprowadzona"
+        if status == "przeprowadzona":
+            update_referral_lessons(booking['teacher_id'], booking_id)
+
         db.execute("""
             INSERT INTO notifications (user_id, sender_id, message)
             VALUES (?, ?, ?)
@@ -2552,6 +2556,62 @@ def is_valid_email(email):
     return re.match(pattern, email) is not None
 
 
+def update_referral_lessons(teacher_id, booking_id):
+    db = get_db()
+
+    # Find referral link for this teacher
+    ref_link = db.execute("""
+        SELECT id FROM ref_links 
+        WHERE recipient_id = ?
+    """, (teacher_id,)).fetchone()
+
+    if not ref_link:
+        return
+
+    # Add booking to referral tracking
+    try:
+        db.execute("""
+            INSERT INTO referral_bookings (ref_link_id, booking_id)
+            VALUES (?, ?)
+        """, (ref_link['id'], booking_id))
+        db.commit()
+    except sqlite3.IntegrityError:
+        # Booking already tracked
+        pass
+
+    # Count completed bookings for this referral
+    completed_count = db.execute("""
+        SELECT COUNT(*) 
+        FROM referral_bookings rb
+        JOIN bookings b ON rb.booking_id = b.id
+        WHERE rb.ref_link_id = ? AND b.status = 'przeprowadzona'
+    """, (ref_link['id'],)).fetchone()[0]
+
+    # Calculate how many referral lessons should be marked
+    referral_lessons_completed = min(1, completed_count // 5)
+
+    # Update referral link status
+    db.execute("""
+        UPDATE ref_links
+        SET 
+            lesson1_completed = ?,
+            lesson2_completed = ?,
+            lesson3_completed = ?,
+            lesson4_completed = ?,
+            lesson5_completed = ?,
+            all_completed = ?
+        WHERE id = ?
+    """, (
+        1 if referral_lessons_completed >= 1 else 0,
+        1 if referral_lessons_completed >= 2 else 0,
+        1 if referral_lessons_completed >= 3 else 0,
+        1 if referral_lessons_completed >= 4 else 0,
+        1 if referral_lessons_completed >= 5 else 0,
+        1 if referral_lessons_completed >= 5 else 0,
+        ref_link['id']
+    ))
+    db.commit()
+
 def generate_time_slots():
     """Generate time slots from 08:00 to 20:00 with 30-minute intervals"""
     slots = []
@@ -2712,6 +2772,15 @@ def init_db():
                 FOREIGN KEY (owner_id) REFERENCES users (id),
                 FOREIGN KEY (recipient_id) REFERENCES users (id)
             )
+        """)
+        db.execute("""
+        CREATE TABLE IF NOT EXISTS referral_bookings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ref_link_id INTEGER NOT NULL,
+            booking_id INTEGER NOT NULL,
+            FOREIGN KEY (ref_link_id) REFERENCES ref_links(id),
+            FOREIGN KEY (booking_id) REFERENCES bookings(id)
+        )
         """)
 
         # Create admin user if not exists
@@ -2905,6 +2974,16 @@ def register_teacher_ref(token):
             """, (new_teacher["id"], ref_link["id"]))
             db.commit()
 
+            db.execute("""
+                UPDATE referral_bookings
+                SET ref_link_id = ?
+                WHERE booking_id IN (
+                    SELECT id FROM bookings
+                    WHERE teacher_id = ?
+                )
+            """, (ref_link['id'], new_teacher["id"]))
+            db.commit()
+
             flash("Rejestracja zakończona sukcesem! Możesz się teraz zalogować", "success")
             return redirect(url_for("login"))
 
@@ -2937,6 +3016,20 @@ def manage_referral(link_id):
         flash("Nieprawidłowy link", "error")
         return redirect(url_for("crm_referrals"))
 
+    # Calculate completed referral lessons
+    completed_referral_lessons = sum([
+        1 for i in range(1, 6)
+        if ref_link[f'lesson{i}_completed']
+    ])
+
+    # Calculate client lessons count
+    client_lessons_count = db.execute("""
+        SELECT COUNT(*) 
+        FROM referral_bookings rb
+        JOIN bookings b ON rb.booking_id = b.id
+        WHERE rb.ref_link_id = ? AND b.status = 'przeprowadzona'
+    """, (link_id,)).fetchone()[0]
+
     if request.method == "POST":
         updates = {}
         for i in range(1, 6):
@@ -2955,11 +3048,15 @@ def manage_referral(link_id):
             WHERE id = ?
         """, values)
         db.commit()
-
         flash("Status lekcji został zaktualizowany", "success")
         return redirect(url_for("manage_referral", link_id=link_id))
 
-    return render_template("manage_referral.html", link=ref_link)
+    return render_template(
+        "manage_referral.html",
+        link=ref_link,
+        completed_referral_lessons=completed_referral_lessons,
+        client_lessons_count=client_lessons_count
+    )
 
 
 if __name__ == "__main__":
