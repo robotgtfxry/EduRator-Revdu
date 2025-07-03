@@ -2696,6 +2696,24 @@ def init_db():
             )
         """)
 
+        db.execute("""
+            CREATE TABLE IF NOT EXISTS ref_links (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                link TEXT UNIQUE NOT NULL,
+                owner_id INTEGER NOT NULL,
+                recipient_id INTEGER,
+                lesson1_completed INTEGER DEFAULT 0,
+                lesson2_completed INTEGER DEFAULT 0,
+                lesson3_completed INTEGER DEFAULT 0,
+                lesson4_completed INTEGER DEFAULT 0,
+                lesson5_completed INTEGER DEFAULT 0,
+                all_completed INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (owner_id) REFERENCES users (id),
+                FOREIGN KEY (recipient_id) REFERENCES users (id)
+            )
+        """)
+
         # Create admin user if not exists
         admin = db.execute("SELECT * FROM users WHERE username = 'admin'").fetchone()
         if not admin:
@@ -2789,6 +2807,159 @@ def string_to_date(value):
     except:
         return datetime.now()
 
+
+@app.route("/crm/referrals", methods=["GET", "POST"])
+def crm_referrals():
+    if "user_id" not in session or session.get("user_role") != "regional_teacher":
+        flash("Nie masz uprawnień do tej strony", "error")
+        return redirect(url_for("index"))
+
+    user_id = session["user_id"]
+    db = get_db()
+
+    if request.method == "POST":
+        # Generate new referral link
+        token = secrets.token_urlsafe(16)
+        link = url_for('register_teacher_ref', token=token, _external=True)
+
+        db.execute("""
+            INSERT INTO ref_links (link, owner_id)
+            VALUES (?, ?)
+        """, (link, user_id))
+        db.commit()
+        flash("Nowy link polecający został wygenerowany", "success")
+        return redirect(url_for("crm_referrals"))
+
+    # Get all referral links for this user
+    links = db.execute("""
+        SELECT r.*, u.username as recipient_name
+        FROM ref_links r
+        LEFT JOIN users u ON r.recipient_id = u.id
+        WHERE r.owner_id = ?
+        ORDER BY r.created_at DESC
+    """, (user_id,)).fetchall()
+
+    return render_template("crm_referrals.html", links=links)
+
+
+@app.route("/register/teacher/<token>", methods=["GET", "POST"])
+def register_teacher_ref(token):
+    db = get_db()
+
+    # Verify token
+    ref_link = db.execute("""
+        SELECT * FROM ref_links 
+        WHERE link LIKE ? AND recipient_id IS NULL
+    """, (f"%{token}%",)).fetchone()
+
+    if not ref_link:
+        flash("Nieprawidłowy lub wykorzystany link", "error")
+        return redirect(url_for("register"))
+
+    owner_id = ref_link["owner_id"]
+    regional_teacher = db.execute("""
+        SELECT * FROM users 
+        WHERE id = ? AND role = ?
+    """, (owner_id, ROLE_REGIONAL_TEACHER)).fetchone()
+
+    if not regional_teacher:
+        flash("Błędny link polecający", "error")
+        return redirect(url_for("register"))
+
+    if request.method == "POST":
+        # Extract form data (similar to regular registration)
+        username = request.form["username"]
+        email = request.form["email"]
+        password = request.form["password"]
+        voivodeship = regional_teacher["voivodeship"]
+
+        # Validation
+        if not all([username, email, password]):
+            flash("Wypełnij wszystkie wymagane pola", "error")
+            return redirect(url_for("register_teacher_ref", token=token))
+
+        # ... (other validation same as regular registration)
+
+        try:
+            # Create teacher account
+            hash_pw = generate_password_hash(password)
+            db.execute("""
+                INSERT INTO users (
+                    username, email, hash, role, voivodeship, regional_teacher_id
+                ) VALUES (?, ?, ?, ?, ?, ?)
+            """, (username, email, hash_pw, ROLE_TEACHER, voivodeship, owner_id))
+            db.commit()
+
+            # Get new teacher ID
+            new_teacher = db.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()
+
+            # Update referral link with recipient
+            db.execute("""
+                UPDATE ref_links 
+                SET recipient_id = ?
+                WHERE id = ?
+            """, (new_teacher["id"], ref_link["id"]))
+            db.commit()
+
+            flash("Rejestracja zakończona sukcesem! Możesz się teraz zalogować", "success")
+            return redirect(url_for("login"))
+
+        except Exception as e:
+            flash(f"Błąd podczas rejestracji: {str(e)}", "error")
+            return redirect(url_for("register_teacher_ref", token=token))
+
+    return render_template("register_teacher_ref.html",
+                           regional_teacher=regional_teacher,
+                           token=token)
+
+
+@app.route("/crm/referrals/manage/<int:link_id>", methods=["GET", "POST"])
+def manage_referral(link_id):
+    if "user_id" not in session or session.get("user_role") != "regional_teacher":
+        flash("Nie masz uprawnień do tej strony", "error")
+        return redirect(url_for("index"))
+
+    user_id = session["user_id"]
+    db = get_db()
+
+    # Verify the link belongs to current user
+    ref_link = db.execute("""
+        SELECT r.*, u.username as recipient_name
+        FROM ref_links r
+        LEFT JOIN users u ON r.recipient_id = u.id
+        WHERE r.id = ? AND r.owner_id = ?
+    """, (link_id, user_id)).fetchone()
+
+    if not ref_link:
+        flash("Nieprawidłowy link", "error")
+        return redirect(url_for("crm_referrals"))
+
+    if request.method == "POST":
+        # Update lesson status
+        updates = {}
+        for i in range(1, 6):
+            completed = request.form.get(f"lesson{i}", "0") == "1"
+            updates[f"lesson{i}_completed"] = 1 if completed else 0
+
+        # Check if all lessons are completed
+        all_completed = all(updates[f"lesson{i}_completed"] == 1 for i in range(1, 6))
+        updates["all_completed"] = 1 if all_completed else 0
+
+        # Build update query
+        set_clause = ", ".join([f"{k} = ?" for k in updates.keys()])
+        values = list(updates.values()) + [link_id]
+
+        db.execute(f"""
+            UPDATE ref_links 
+            SET {set_clause}
+            WHERE id = ?
+        """, values)
+        db.commit()
+
+        flash("Status lekcji został zaktualizowany", "success")
+        return redirect(url_for("manage_referral", link_id=link_id))
+
+    return render_template("manage_referral.html", link=ref_link)
 
 if __name__ == "__main__":
     init_db()

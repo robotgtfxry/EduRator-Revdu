@@ -1,0 +1,65 @@
+<!--templates/register_teacher_ref.html-->
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Rejestracja nauczyciela - Program poleceń</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+</head>
+<body>
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h2 class="text-center">Rejestracja nauczyciela</h2>
+                        <p class="text-center mb-0">Program poleceń</p>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info">
+                            <h4><i class="fas fa-gift"></i> Otrzymałeś zaproszenie do programu!</h4>
+                            <p class="mb-0">
+                                Zarejestruj się jako nauczyciel w systemie i otrzymaj wsparcie od
+                                <strong>{{ regional_teacher['username'] }}</strong> ({{ regional_teacher['voivodeship'] }}).
+                            </p>
+                        </div>
+
+                        <form method="POST">
+                            <!-- Registration form fields same as regular teacher registration -->
+                            <div class="mb-3">
+                                <label class="form-label">Nazwa użytkownika</label>
+                                <input type="text" class="form-control" name="username" required>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Adres email</label>
+                                <input type="email" class="form-control" name="email" required>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Hasło</label>
+                                <input type="password" class="form-control" name="password" required>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Województwo</label>
+                                <input type="text" class="form-control"
+                                       value="{{ regional_teacher['voivodeship'] }}" readonly>
+                                <small class="form-text text-muted">Twoje województwo zostało przypisane na podstawie nauczyciela polecającego</small>
+                            </div>
+
+                            <input type="hidden" name="token" value="{{ token }}">
+
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-success btn-lg">
+                                    <i class="fas fa-user-plus"></i> Zarejestruj się
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

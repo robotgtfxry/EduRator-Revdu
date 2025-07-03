@@ -1,0 +1,99 @@
+<!--templates/manage_referral.html-->
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Zarządzanie lekcjami</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container py-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>
+                <i class="fas fa-tasks"></i>
+                Zarządzanie lekcjami
+                {% if link['all_completed'] %}
+                    <span class="badge bg-success">Zakończono!</span>
+                {% endif %}
+            </h1>
+            <a href="{{ url_for('crm_referrals') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Powrót
+            </a>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h5>Szczegóły linku</h5>
+                        <p><strong>Link:</strong> <a href="{{ link['link'] }}" target="_blank">{{ link['link'] }}</a></p>
+                        <p><strong>Nauczyciel:</strong>
+                            {% if link['recipient_name'] %}
+                                {{ link['recipient_name'] }}
+                            {% else %}
+                                <span class="text-danger">Brak przypisanego nauczyciela</span>
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div class="col-md-6">
+                        <h5>Statystyki</h5>
+                        <div class="progress mb-2" style="height: 25px;">
+                            {% set completed = [link['lesson1_completed'], link['lesson2_completed'],
+                                                link['lesson3_completed'], link['lesson4_completed'],
+                                                link['lesson5_completed']]|sum %}
+                            <div class="progress-bar" role="progressbar"
+                                 style="width: {{ (completed/5)*100 }}%;"
+                                 aria-valuenow="{{ completed }}"
+                                 aria-valuemin="0"
+                                 aria-valuemax="5">
+                                {{ completed }}/5 lekcji ukończonych
+                            </div>
+                        </div>
+                        <p class="mb-0">Ostatnia aktualizacja: {{ link['created_at']|format_datetime }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Status lekcji</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="row">
+                        {% for i in range(1,6) %}
+                        <div class="col-md-4 mb-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox"
+                                       id="lesson{{ i }}" name="lesson{{ i }}" value="1"
+                                       {% if link['lesson%s_completed'|format(i)] %}checked{% endif %}>
+                                <label class="form-check-label" for="lesson{{ i }}">
+                                    <strong>Lekcja {{ i }}</strong>
+                                </label>
+                            </div>
+                            <div class="mt-1">
+                                <small class="text-muted">
+                                    {% if link['lesson%s_completed'|format(i)] %}
+                                        <span class="text-success">Ukończono</span>
+                                    {% else %}
+                                        <span class="text-danger">W trakcie</span>
+                                    {% endif %}
+                                </small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="d-grid mt-4">
+                        <button type="submit" class="btn btn-success btn-lg">
+                            <i class="fas fa-save"></i> Zapisz zmiany
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

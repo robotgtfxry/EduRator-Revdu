@@ -1,0 +1,110 @@
+<!--templates/crm_referrals.html-->
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Zarządzanie linkami polecającymi</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .link-card {
+            margin-bottom: 20px;
+            border-left: 4px solid #0d6efd;
+        }
+        .completed { background-color: #e8f5e9; }
+        .copy-btn { cursor: pointer; }
+        .status-badge { min-width: 100px; }
+    </style>
+</head>
+<body>
+    <div class="container py-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1><i class="fas fa-link"></i> Twoje linki polecające</h1>
+            <div>
+                <a href="{{ url_for('crm') }}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Powrót do CRM
+                </a>
+                <form method="POST" action="{{ url_for('crm_referrals') }}" class="d-inline">
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-plus"></i> Generuj nowy link
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        {% if not links %}
+            <div class="alert alert-info">
+                Nie masz jeszcze żadnych aktywnych linków polecających. Kliknij "Generuj nowy link", aby utworzyć pierwszy.
+            </div>
+        {% else %}
+            <div class="row">
+                {% for link in links %}
+                <div class="col-md-6">
+                    <div class="card link-card {% if link['all_completed'] %}completed{% endif %}">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>Link #{{ link['id'] }}</strong>
+                                <span class="badge {% if link['recipient_id'] %}bg-success{% else %}bg-warning{% endif %} status-badge">
+                                    {% if link['recipient_id'] %}Aktywny{% else %}Oczekuje{% endif %}
+                                </span>
+                            </div>
+                            <div>
+                                <span class="badge bg-primary copy-btn" data-link="{{ link['link'] }}">
+                                    <i class="fas fa-copy"></i> Kopiuj
+                                </span>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-2">
+                                <small class="text-muted">Wygenerowano: {{ link['created_at']|format_datetime }}</small>
+                            </div>
+
+                            <div class="mb-3">
+                                {% if link['recipient_name'] %}
+                                    <p>Nauczyciel: <strong>{{ link['recipient_name'] }}</strong></p>
+                                {% else %}
+                                    <p>Oczekuje na rejestrację nauczyciela</p>
+                                {% endif %}
+                            </div>
+
+                            <h5>Postęp lekcji:</h5>
+                            <div class="d-flex justify-content-between mb-3">
+                                {% for i in range(1,6) %}
+                                <div class="text-center">
+                                    <div class="mb-1">Lekcja {{ i }}</div>
+                                    <span class="badge {% if link['lesson%s_completed'|format(i) %}bg-success{% else %}bg-secondary{% endif %}">
+                                        {% if link['lesson%s_completed'|format(i) %}✓{% else %}✗{% endif %}
+                                    </span>
+                                </div>
+                                {% endfor %}
+                            </div>
+
+                            <div class="d-grid">
+                                <a href="{{ url_for('manage_referral', link_id=link['id']) }}" class="btn btn-outline-primary">
+                                    <i class="fas fa-edit"></i> Zarządzaj lekcjami
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+
+    <script>
+        document.querySelectorAll('.copy-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const link = this.dataset.link;
+                navigator.clipboard.writeText(link).then(() => {
+                    const originalHtml = this.innerHTML;
+                    this.innerHTML = '<i class="fas fa-check"></i> Skopiowano!';
+                    setTimeout(() => {
+                        this.innerHTML = originalHtml;
+                    }, 2000);
+                });
+            });
+        });
+    </script>
+</body>
+</html>

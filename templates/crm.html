@@ -81,6 +81,27 @@
         .btn-save {
             margin-top: 20px;
         }
+        .crm-nav {
+            margin-bottom: 20px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .crm-nav .nav-link {
+            font-weight: 500;
+            color: #495057;
+            padding: 10px 20px;
+            border-radius: 5px 5px 0 0;
+        }
+        .crm-nav .nav-link.active {
+            color: #0d6efd;
+            background-color: #e7f1ff;
+            border-bottom: 3px solid #0d6efd;
+        }
+        .referral-card {
+            margin-bottom: 20px;
+            border-left: 4px solid #0d6efd;
+        }
+        .copy-btn { cursor: pointer; }
+        .progress-bar { transition: width 0.5s ease; }
     </style>
 </head>
 <body>
@@ -100,87 +121,234 @@
             </div>
         </div>
 
-        <div class="row mb-4">
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header bg-primary text-white">
-                        <i class="fas fa-money-bill-wave"></i> Twój cennik
-                    </div>
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between">
-                            <div>
-                                <h5>Lekcja online</h5>
-                                <p class="fs-4">{{ pricing.price_online | default(80.0) }} zł/h</p>
+        <!-- Navigation -->
+        <ul class="nav nav-tabs crm-nav">
+            <li class="nav-item">
+                <a class="nav-link active" href="#dashboard" data-bs-toggle="tab">
+                    <i class="fas fa-tachometer-alt"></i> Dashboard
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#availability" data-bs-toggle="tab">
+                    <i class="fas fa-calendar-alt"></i> Kalendarz
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#pricing" data-bs-toggle="tab">
+                    <i class="fas fa-money-bill-wave"></i> Cennik
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#referrals" data-bs-toggle="tab">
+                    <i class="fas fa-link"></i> Linki polecające
+                </a>
+            </li>
+        </ul>
+
+        <div class="tab-content">
+            <!-- Dashboard Tab -->
+            <div class="tab-pane active" id="dashboard">
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header bg-primary text-white">
+                                <i class="fas fa-money-bill-wave"></i> Twój cennik
                             </div>
-                            <div>
-                                <h5>Lekcja stacjonarna</h5>
-                                <p class="fs-4">{{ pricing.price_in_person | default(100.0) }} zł/h</p>
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h5>Lekcja online</h5>
+                                        <p class="fs-4">{{ pricing.price_online | default(80.0) }} zł/h</p>
+                                    </div>
+                                    <div>
+                                        <h5>Lekcja stacjonarna</h5>
+                                        <p class="fs-4">{{ pricing.price_in_person | default(100.0) }} zł/h</p>
+                                    </div>
+                                </div>
+                                <a href="{{ url_for('crm_pricing') }}" class="btn btn-outline-primary w-100 mt-2">
+                                    <i class="fas fa-edit"></i> Edytuj cennik
+                                </a>
                             </div>
                         </div>
-                        <a href="{{ url_for('crm_pricing') }}" class="btn btn-outline-primary w-100 mt-2">
-                            <i class="fas fa-edit"></i> Edytuj cennik
-                        </a>
                     </div>
+
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header bg-info text-white">
+                                <i class="fas fa-users"></i> Twoi uczniowie
+                            </div>
+                            <div class="card-body">
+                                {% if managed_teachers %}
+                                    <ul class="list-group">
+                                        {% for teacher in managed_teachers %}
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <strong>{{ teacher['username'] }}</strong>
+                                                <div class="text-muted small">{{ teacher['email'] }}</div>
+                                            </div>
+                                            <span class="badge bg-primary">{{ teacher['voivodeship'] }}</span>
+                                        </li>
+                                        {% endfor %}
+                                    </ul>
+                                {% else %}
+                                    <p class="text-center text-muted">Brak przypisanych uczniów</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Nadchodzące lekcje -->
+                <h3><i class="fas fa-calendar-alt"></i> Nadchodzące lekcje</h3>
+                <div id="lessons" class="mb-5 upcoming-lessons">
+                    <p class="text-center">Ładowanie danych...</p>
                 </div>
             </div>
 
-            <div class="col-md-6">
+            <!-- Availability Tab -->
+            <div class="tab-pane" id="availability">
                 <div class="card">
-                    <div class="card-header bg-info text-white">
-                        <i class="fas fa-users"></i> Twoi uczniowie
+                    <div class="card-header bg-primary text-white">
+                        <i class="fas fa-calendar-check"></i> Kalendarz dostępności
                     </div>
                     <div class="card-body">
-                        {% if managed_teachers %}
-                            <ul class="list-group">
-                                {% for teacher in managed_teachers %}
-                                <li class="list-group-item d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <strong>{{ teacher['username'] }}</strong>
-                                        <div class="text-muted small">{{ teacher['email'] }}</div>
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <h4>Zarządzaj swoją dostępnością</h4>
+                            <button id="add-availability" class="btn btn-success">
+                                <i class="fas fa-plus"></i> Dodaj blok czasowy
+                            </button>
+                        </div>
+
+                        <div id="availability-container">
+                            <!-- Existing availability blocks will be added here -->
+                            <div class="empty-state">
+                                <i class="fas fa-calendar-plus"></i>
+                                <h5>Brak dodanych bloków czasowych</h5>
+                                <p>Dodaj swoje godziny dostępności, aby uczniowie mogli rezerwować lekcje</p>
+                            </div>
+                        </div>
+
+                        <button id="save-availability" class="btn btn-primary btn-lg w-100 btn-save">
+                            <i class="fas fa-save"></i> Zapisz dostępność
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pricing Tab -->
+            <div class="tab-pane" id="pricing">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <i class="fas fa-money-bill-wave"></i> Zarządzanie cennikiem
+                    </div>
+                    <div class="card-body">
+                        <form method="POST" action="{{ url_for('crm_pricing') }}">
+                            <div class="row mb-4">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">Cena za lekcję online (zł/h)</label>
+                                        <input type="number" class="form-control" name="price_online"
+                                            value="{{ pricing.price_online | default(80.0) }}" step="5" min="0" required>
                                     </div>
-                                    <span class="badge bg-primary">{{ teacher['voivodeship'] }}</span>
-                                </li>
-                                {% endfor %}
-                            </ul>
-                        {% else %}
-                            <p class="text-center text-muted">Brak przypisanych uczniów</p>
-                        {% endif %}
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">Cena za lekcję stacjonarną (zł/h)</label>
+                                        <input type="number" class="form-control" name="price_in_person"
+                                            value="{{ pricing.price_in_person | default(100.0) }}" step="5" min="0" required>
+                                    </div>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-lg w-100">
+                                <i class="fas fa-save"></i> Zapisz zmiany w cenniku
+                            </button>
+                        </form>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Nadchodzące lekcje -->
-        <h3><i class="fas fa-calendar-alt"></i> Nadchodzące lekcje</h3>
-        <div id="lessons" class="mb-5 upcoming-lessons">
-            <p class="text-center">Ładowanie danych...</p>
-        </div>
-
-        <!-- Kalendarz dostępności -->
-        <div class="card">
-            <div class="card-header bg-primary text-white">
-                <i class="fas fa-calendar-check"></i> Kalendarz dostępności
-            </div>
-            <div class="card-body">
+            <!-- Referrals Tab -->
+            <div class="tab-pane" id="referrals">
                 <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h4>Zarządzaj swoją dostępnością</h4>
-                    <button id="add-availability" class="btn btn-success">
-                        <i class="fas fa-plus"></i> Dodaj blok czasowy
-                    </button>
+                    <h3><i class="fas fa-link"></i> Linki polecające</h3>
+                    <form method="POST" action="{{ url_for('crm_referrals') }}" class="d-inline">
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-plus"></i> Generuj nowy link
+                        </button>
+                    </form>
                 </div>
 
-                <div id="availability-container">
-                    <!-- Existing availability blocks will be added here -->
-                    <div class="empty-state">
-                        <i class="fas fa-calendar-plus"></i>
-                        <h5>Brak dodanych bloków czasowych</h5>
-                        <p>Dodaj swoje godziny dostępności, aby uczniowie mogli rezerwować lekcje</p>
+                {% if not links %}
+                    <div class="alert alert-info">
+                        Nie masz jeszcze żadnych aktywnych linków polecających. Kliknij "Generuj nowy link", aby utworzyć pierwszy.
                     </div>
-                </div>
+                {% else %}
+                    <div class="row">
+                        {% for link in links %}
+                        <div class="col-md-6">
+                            <div class="card referral-card {% if link['all_completed'] %}border-success{% endif %}">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <strong>Link #{{ link['id'] }}</strong>
+                                        <span class="badge {% if link['recipient_id'] %}bg-success{% else %}bg-warning{% endif %}">
+                                            {% if link['recipient_id'] %}Aktywny{% else %}Oczekuje{% endif %}
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <span class="badge bg-primary copy-btn" data-link="{{ link['link'] }}">
+                                            <i class="fas fa-copy"></i> Kopiuj
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-2">
+                                        <small class="text-muted">Wygenerowano: {{ link['created_at']|format_datetime }}</small>
+                                    </div>
 
-                <button id="save-availability" class="btn btn-primary btn-lg w-100 btn-save">
-                    <i class="fas fa-save"></i> Zapisz dostępność
-                </button>
+                                    <div class="mb-3">
+                                        {% if link['recipient_name'] %}
+                                            <p>Nauczyciel: <strong>{{ link['recipient_name'] }}</strong></p>
+                                        {% else %}
+                                            <p>Oczekuje na rejestrację nauczyciela</p>
+                                        {% endif %}
+                                    </div>
+
+                                    <h5>Postęp lekcji:</h5>
+                                    <div class="progress mb-3" style="height: 25px;">
+                                        {% set completed = [link['lesson1_completed'], link['lesson2_completed'],
+                                                            link['lesson3_completed'], link['lesson4_completed'],
+                                                            link['lesson5_completed']]|sum %}
+                                        <div class="progress-bar bg-success" role="progressbar"
+                                            style="width: {{ (completed/5)*100 }}%;"
+                                            aria-valuenow="{{ completed }}"
+                                            aria-valuemin="0"
+                                            aria-valuemax="5">
+                                            {{ completed }}/5 lekcji
+                                        </div>
+                                    </div>
+
+                                    <div class="d-flex justify-content-between mb-3">
+                                        {% for i in range(1,6) %}
+                                        <div class="text-center">
+                                            <div class="mb-1">Lekcja {{ i }}</div>
+                                            <span class="badge {% if link['lesson%s_completed'|format(i)] %}bg-success{% else %}bg-secondary{% endif %}">
+                                                {% if link['lesson%s_completed'|format(i)] %}✓{% else %}✗{% endif %}
+                                            </span>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+
+                                    <div class="d-grid">
+                                        <a href="{{ url_for('manage_referral', link_id=link['id']) }}" class="btn btn-outline-primary">
+                                            <i class="fas fa-edit"></i> Zarządzaj lekcjami
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
             </div>
         </div>
 
@@ -229,6 +397,7 @@
         </template>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // DOM elements
@@ -236,6 +405,12 @@
             const addButton = document.getElementById('add-availability');
             const saveButton = document.getElementById('save-availability');
             const blockTemplate = document.getElementById('availability-block-template');
+
+            // Initialize Bootstrap tabs
+            const triggerTabList = [].slice.call(document.querySelectorAll('.crm-nav a'))
+            triggerTabList.forEach(function (triggerEl) {
+                new bootstrap.Tab(triggerEl)
+            })
 
             // Load existing availability blocks
             function loadAvailability() {
@@ -499,9 +674,27 @@
                     });
             }
 
+            // Copy link functionality
+            document.querySelectorAll('.copy-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const link = this.dataset.link;
+                    navigator.clipboard.writeText(link).then(() => {
+                        const originalHtml = this.innerHTML;
+                        this.innerHTML = '<i class="fas fa-check"></i> Skopiowano!';
+                        setTimeout(() => {
+                            this.innerHTML = originalHtml;
+                        }, 2000);
+                    });
+                });
+            });
+
             // Event listeners
-            addButton.addEventListener('click', () => addAvailabilityBlock());
-            saveButton.addEventListener('click', saveAvailability);
+            if (addButton) {
+                addButton.addEventListener('click', () => addAvailabilityBlock());
+            }
+            if (saveButton) {
+                saveButton.addEventListener('click', saveAvailability);
+            }
 
             // Load initial data
             loadAvailability();
