@@ -24,6 +24,12 @@ ROLE_ADMIN = 3
 app.config['UPLOAD_FOLDER'] = 'static/profile_pictures'
 app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif'}
 app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024  # 2MB
+app.config.update(
+    SESSION_COOKIE_SECURE=False,  # Jeśli NIE używasz HTTPS
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax"
+)
+
 
 # Polish voivodeships with coordinates
 VOIVODESHIPS = {
