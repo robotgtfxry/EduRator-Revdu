@@ -70,10 +70,11 @@
                             <h5>Postęp lekcji:</h5>
                             <div class="d-flex justify-content-between mb-3">
                                 {% for i in range(1,6) %}
+                                {% set lesson_key = 'lesson' ~ i ~ '_completed' %}
                                 <div class="text-center">
                                     <div class="mb-1">Lekcja {{ i }}</div>
-                                    <span class="badge {% if link['lesson%s_completed'|format(i) %}bg-success{% else %}bg-secondary{% endif %}">
-                                        {% if link['lesson%s_completed'|format(i) %}✓{% else %}✗{% endif %}
+                                    <span class="badge {% if link[lesson_key] %}bg-success{% else %}bg-secondary{% endif %}">
+                                        {% if link[lesson_key] %}✓{% else %}✗{% endif %}
                                     </span>
                                 </div>
                                 {% endfor %}
