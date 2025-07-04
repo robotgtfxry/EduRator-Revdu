@@ -1877,6 +1877,7 @@ def teacher_profile(teacher_id):
     if "user_id" not in session:
         flash("Musisz być zalogowany, aby przeglądać profile nauczycieli", "error")
         return redirect(url_for("login"))
+
     db = get_db()
     teacher = db.execute("""
         SELECT u.*, p.city, p.address, p.lat, p.lng, 
@@ -1911,8 +1912,17 @@ def teacher_profile(teacher_id):
             'mode': row['teaching_mode']
         }
 
-    # Pobierz opinie (w przyszłości)
+    # Pobierz opinie
     reviews = []
+    if db:
+        reviews = db.execute("""
+            SELECT r.*, u.username as student_name
+            FROM reviews r
+            JOIN users u ON r.student_id = u.id
+            WHERE r.teacher_id = ?
+            ORDER BY r.created_at DESC
+        """, (teacher_id,)).fetchall()
+        reviews = rows_to_dict_list(reviews)
 
     pricing = db.execute("""
         SELECT price_online, price_in_person 
@@ -1923,13 +1933,25 @@ def teacher_profile(teacher_id):
     if not pricing:
         pricing = {"price_online": "brak danych", "price_in_person": "brak danych"}
 
+    unread_notifications = 0
+    if 'user_id' in session:
+        user_id = session['user_id']
+        unread_notifications = db.execute("""
+                SELECT COUNT(*) as count
+                FROM notifications
+                WHERE user_id = ? AND is_read = 0
+            """, (user_id,)).fetchone()["count"]
+
     return render_template("teacher_profile.html",
                            teacher=teacher,
                            availability=availability,
                            reviews=reviews,
                            time_slots=generate_time_slots(),
                            datetime=datetime,
-                           pricing=pricing)
+                           pricing=pricing,
+                           logged_in='user_id' in session,
+                           session=session,
+                           unread_notifications=unread_notifications)
 
 
 @app.route("/book_teacher/<int:teacher_id>", methods=["GET", "POST"])
@@ -2720,6 +2742,20 @@ def init_db():
             )
         """)
 
+        db.execute("""
+            CREATE TABLE IF NOT EXISTS reviews (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                teacher_id INTEGER NOT NULL,
+                student_id INTEGER NOT NULL,
+                content TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                rating INTEGER CHECK(rating BETWEEN 1 AND 5),
+                FOREIGN KEY (teacher_id) REFERENCES users(id),
+                FOREIGN KEY (student_id) REFERENCES users(id)
+                )
+            """)
+
+
         # Create admin user if not exists
         admin = db.execute("SELECT * FROM users WHERE username = 'admin'").fetchone()
         if not admin:
@@ -3050,6 +3086,100 @@ def get_referral_links():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
+@app.route("/api/add_review", methods=["POST"])
+def add_review():
+    if "user_id" not in session:
+        return jsonify({"error": "Musisz być zalogowany"}), 401
+
+    data = request.get_json()
+    teacher_id = data.get("teacher_id")
+    content = data.get("content")
+    rating = data.get("rating")
+
+    if not all([teacher_id, content, rating]):
+        return jsonify({"error": "Wypełnij wszystkie pola"}), 400
+
+    try:
+        rating = int(rating)
+        if rating < 1 or rating > 5:
+            return jsonify({"error": "Ocena musi być od 1 do 5"}), 400
+    except ValueError:
+        return jsonify({"error": "Nieprawidłowa ocena"}), 400
+
+    student_id = session["user_id"]
+    db = get_db()
+
+    # Sprawdzamy tylko czy użytkownik już nie dodał opinii
+    existing_review = db.execute("""
+        SELECT id FROM reviews 
+        WHERE teacher_id = ? AND student_id = ?
+    """, (teacher_id, student_id)).fetchone()
+
+    if existing_review:
+        return jsonify({"error": "Możesz dodać tylko jedną opinię na nauczyciela"}), 403
+
+    try:
+        db.execute("""
+            INSERT INTO reviews (teacher_id, student_id, content, rating)
+            VALUES (?, ?, ?, ?)
+        """, (teacher_id, student_id, content, rating))
+        db.commit()
+        return jsonify({"success": True, "message": "Dziękujemy za opinię!"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/get_reviews/<int:teacher_id>", methods=["GET"])
+def get_reviews(teacher_id):
+    db = get_db()
+    reviews = db.execute("""
+        SELECT r.*, u.username as student_name
+        FROM reviews r
+        JOIN users u ON r.student_id = u.id
+        WHERE r.teacher_id = ?
+        ORDER BY r.created_at DESC
+    """, (teacher_id,)).fetchall()
+    return jsonify(rows_to_dict_list(reviews))
+
+
+@app.route("/api/can_review", methods=["GET"])
+def can_review():
+    if "user_id" not in session:
+        return jsonify({"can_review": False})
+
+    student_id = session["user_id"]
+    teacher_id = request.args.get("teacher_id")
+
+    if not teacher_id:
+        return jsonify({"can_review": False})
+
+    try:
+        teacher_id = int(teacher_id)
+    except ValueError:
+        return jsonify({"can_review": False})
+
+    db = get_db()
+
+    # Sprawdzamy tylko czy użytkownik już nie dodał opinii
+    has_review = db.execute("""
+        SELECT id FROM reviews 
+        WHERE teacher_id = ? AND student_id = ?
+        LIMIT 1
+    """, (teacher_id, student_id)).fetchone()
+
+    can_review = has_review is None
+    return jsonify({"can_review": can_review})
+
+
+@app.template_filter('format_date')
+def format_date(value):
+    if value is None:
+        return "Nieznana"
+    try:
+        dt = datetime.strptime(value, '%Y-%m-%d')
+        return dt.strftime('%d.%m.%Y')
+    except:
+        return value
 
 
 if __name__ == "__main__":
