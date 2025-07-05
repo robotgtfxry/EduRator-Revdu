@@ -2118,13 +2118,12 @@ def book_teacher(teacher_id):
 
 @app.route("/crm", methods=["GET", "POST"])
 def crm():
-    """CRM panel for teachers with weekly calendar view and availability management"""
     if "user_id" not in session or session.get("user_role") not in ["teacher", "regional_teacher"]:
         flash("Nie masz uprawnień do tej strony", "error")
         return redirect(url_for("index"))
 
-    db = get_db()
     teacher_id = session["user_id"]
+    db = get_db()
     today = datetime.now().date()
     current_weekday = today.weekday()
     selected_date_str = request.args.get('date', today.strftime('%Y-%m-%d'))
@@ -2212,29 +2211,8 @@ def crm():
     else:
         pricing = {"price_online": 80.0, "price_in_person": 100.0}
 
-    if request.method == "POST":
-        time_slots = generate_time_slots()
-        db.execute("DELETE FROM teacher_availability WHERE teacher_id = ?", (teacher_id,))
-
-        for day in range(7):
-            for slot in time_slots:
-                slot_key = slot.replace(' - ', '_').replace(':', '')
-                checkbox_name = f"day_{day}_{slot_key}"
-                is_available = 1 if checkbox_name in request.form else 0
-                mode_name = f"mode_{day}_{slot_key}"
-                teaching_mode = request.form.get(mode_name, "online")
-                start_time, end_time = slot.split(" - ")
-
-                if is_available:
-                    db.execute("""
-                        INSERT INTO teacher_availability 
-                        (teacher_id, day_of_week, start_time, end_time, is_available, teaching_mode)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                    """, (teacher_id, day, start_time, end_time, is_available, teaching_mode))
-
-        db.commit()
-        flash("Wzorzec dostępności został zaktualizowany", "success")
-        return redirect(url_for("crm", date=selected_date_str))
+    # Pobierz saldo użytkownika
+    balance = get_balance(teacher_id)
 
     return render_template("crm.html",
                            availability=availability,
@@ -2249,7 +2227,8 @@ def crm():
                            next_week=next_week,
                            bookings_info=bookings_info,
                            managed_teachers=managed_teachers,
-                           pricing=pricing)
+                           pricing=pricing,
+                           balance=balance)
 
 
 @app.route("/crm/set_day_free", methods=["POST"])
@@ -2755,6 +2734,15 @@ def init_db():
                 )
             """)
 
+        # Dodaj w init_db()
+        db.execute("""
+            CREATE TABLE IF NOT EXISTS user_balances (
+                user_id INTEGER PRIMARY KEY,
+                balance REAL DEFAULT 0.0,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        """)
+
 
         # Create admin user if not exists
         admin = db.execute("SELECT * FROM users WHERE username = 'admin'").fetchone()
@@ -3181,6 +3169,191 @@ def format_date(value):
     except:
         return value
 
+
+@app.route("/api/balance", methods=["GET"])
+def get_user_balance():
+    if "user_id" not in session:
+        return jsonify({"error": "Not logged in"}), 401
+
+    user_id = session["user_id"]
+    return jsonify({"balance": get_balance(user_id)})
+
+
+@app.route("/api/deposit", methods=["POST"])
+def deposit():
+    if "user_id" not in session:
+        return jsonify({"error": "Not logged in"}), 401
+
+    data = request.get_json()
+    amount = data.get('amount')
+
+    if not amount or amount <= 0:
+        return jsonify({"error": "Invalid amount"}), 400
+
+    user_id = session["user_id"]
+    db = get_db()
+
+    try:
+        db.execute("""
+            UPDATE user_balances 
+            SET balance = balance + ? 
+            WHERE user_id = ?
+        """, (amount, user_id))
+        db.commit()
+        return jsonify({"success": True, "new_balance": get_balance(user_id)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/withdraw", methods=["POST"])
+def withdraw():
+    if "user_id" not in session or session.get("user_role") not in ["teacher", "regional_teacher"]:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    data = request.get_json()
+    amount = data.get('amount')
+    user_id = session["user_id"]
+
+    if not amount or amount <= 0:
+        return jsonify({"error": "Invalid amount"}), 400
+
+    db = get_db()
+    current_balance = get_balance(user_id)
+
+    if current_balance < amount:
+        return jsonify({"error": "Insufficient funds"}), 400
+
+    try:
+        db.execute("""
+            UPDATE user_balances 
+            SET balance = balance - ? 
+            WHERE user_id = ?
+        """, (amount, user_id))
+        db.commit()
+        return jsonify({"success": True, "new_balance": get_balance(user_id)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+def process_booking_payment(booking_id, student_id, teacher_id, amount, lesson_mode):
+    db = get_db()
+
+    try:
+        # Sprawdź saldo ucznia
+        student_balance = get_balance(student_id)
+        if student_balance < amount:
+            return False, "Insufficient funds"
+
+        # Pobierz cenę lekcji
+        pricing = db.execute("""
+            SELECT price_online, price_in_person 
+            FROM teacher_pricing 
+            WHERE teacher_id = ?
+        """, (teacher_id,)).fetchone()
+
+        if not pricing:
+            pricing = {"price_online": 80.0, "price_in_person": 100.0}
+
+        price = pricing['price_online'] if lesson_mode == 'online' else pricing['price_in_person']
+
+        # Potrąć środki z konta ucznia
+        db.execute("""
+            UPDATE user_balances 
+            SET balance = balance - ? 
+            WHERE user_id = ?
+        """, (price, student_id))
+
+        # Zapisz kwotę w rezerwacji
+        db.execute("""
+            UPDATE bookings 
+            SET amount = ?
+            WHERE id = ?
+        """, (price, booking_id))
+
+        return True, ""
+    except Exception as e:
+        return False, str(e)
+
+
+@app.route("/api/update_lesson_payment", methods=["POST"])
+def update_lesson_payment():
+    if "user_id" not in session:
+        return jsonify({"error": "Not logged in"}), 401
+
+    data = request.get_json()
+    booking_id = data.get("booking_id")
+    status = data.get("status")
+
+    db = get_db()
+    booking = db.execute("SELECT * FROM bookings WHERE id = ?", (booking_id,)).fetchone()
+
+    if not booking:
+        return jsonify({"error": "Booking not found"}), 404
+
+    if booking["amount"] is None or booking["amount"] <= 0:
+        return jsonify({"success": True, "message": "No payment to process"})
+
+    try:
+        # Jeśli lekcja została odwołana, zwróć środki
+        if status in ["cancelled", "odwolana"]:
+            db.execute("""
+                UPDATE user_balances 
+                SET balance = balance + ? 
+                WHERE user_id = ?
+            """, (booking["amount"], booking["student_id"]))
+
+        # Jeśli lekcja została zakończona, przelicz prowizję
+        elif status in ["completed", "przeprowadzona"]:
+            # 85% dla nauczyciela, 15% prowizji systemowej
+            teacher_share = booking["amount"] * 0.85
+            db.execute("""
+                UPDATE user_balances 
+                SET balance = balance + ? 
+                WHERE user_id = ?
+            """, (teacher_share, booking["teacher_id"]))
+
+        db.commit()
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+def get_balance(user_id):
+    db = get_db()
+    balance_row = db.execute("SELECT balance FROM user_balances WHERE user_id = ?", (user_id,)).fetchone()
+    return balance_row["balance"] if balance_row else 0.0
+
+
+@app.route("/add_balance", methods=["GET", "POST"])
+def add_balance():
+    if "user_id" not in session:
+        flash("Musisz być zalogowany", "error")
+        return redirect(url_for("login"))
+
+    user_id = session["user_id"]
+    balance = get_balance(user_id)
+
+    if request.method == "POST":
+        amount = request.form.get("amount")
+        try:
+            amount = float(amount)
+            if amount <= 0:
+                flash("Kwota musi być dodatnia", "error")
+                return redirect(url_for("add_balance"))
+
+            db = get_db()
+            db.execute("""
+                UPDATE user_balances 
+                SET balance = balance + ? 
+                WHERE user_id = ?
+            """, (amount, user_id))
+            db.commit()
+            flash(f"Doładowano konto o {amount:.2f} zł", "success")
+            return redirect(url_for("add_balance"))
+        except ValueError:
+            flash("Nieprawidłowa kwota", "error")
+            return redirect(url_for("add_balance"))
+
+    return render_template("add_balance.html", balance=balance)
 
 if __name__ == "__main__":
     init_db()
