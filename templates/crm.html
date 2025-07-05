@@ -157,6 +157,9 @@
         .transaction-negative {
             color: #dc3545;
         }
+        .transaction-system {
+            color: #6c757d;
+        }
     </style>
 </head>
 <body>
@@ -939,14 +942,13 @@
                         }
 
                         transactions.forEach(transaction => {
-                            const isDeposit = transaction.to_user_id === parseInt("{{ user_id }}");
-                            const isWithdrawal = transaction.from_user_id === parseInt("{{ user_id }}");
-                            const isSystem = !transaction.from_user_id || !transaction.to_user_id;
+                            // Determine transaction type
+                            const isDeposit = !transaction.from_user_id && transaction.to_user_id;
+                            const isWithdrawal = transaction.from_user_id && !transaction.to_user_id;
+                            const isPayment = transaction.from_user_id && transaction.to_user_id;
 
-                            let description = transaction.description;
-                            let amount = transaction.amount;
+                            let textClass = 'transaction-system';
                             let sign = '';
-                            let textClass = '';
 
                             if (isDeposit) {
                                 sign = '+';
@@ -954,31 +956,36 @@
                             } else if (isWithdrawal) {
                                 sign = '-';
                                 textClass = 'transaction-negative';
-                            } else if (isSystem) {
-                                // Dla transakcji systemowych (prowizje)
-                                if (transaction.from_user_id === parseInt("{{ user_id }}")) {
-                                    sign = '-';
-                                    textClass = 'transaction-negative';
-                                } else {
+                            } else if (isPayment) {
+                                if (transaction.to_user_id === parseInt("{{ user_id }}")) {
                                     sign = '+';
                                     textClass = 'transaction-positive';
+                                } else {
+                                    sign = '-';
+                                    textClass = 'transaction-negative';
                                 }
                             }
 
-                            // Formatuj datę
+                            // Format date
                             const date = new Date(transaction.created_at);
-                            const dateStr = date.toLocaleDateString('pl-PL');
+                            const dateStr = date.toLocaleDateString('pl-PL', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                            });
 
                             const item = document.createElement('li');
                             item.className = 'list-group-item d-flex justify-content-between align-items-center';
 
                             item.innerHTML = `
                                 <div>
-                                    <div>${description}</div>
+                                    <div>${transaction.description}</div>
                                     <small class="text-muted">${dateStr}</small>
                                 </div>
                                 <span class="${textClass} fw-bold">
-                                    ${sign}${amount.toFixed(2)} zł
+                                    ${sign}${transaction.amount.toFixed(2)} zł
                                 </span>
                             `;
 
@@ -1050,7 +1057,7 @@
             loadReferralLinks();
             loadBalance();
 
-            // Dodajemy nasłuchiwanie na zmianę zakładek
+            // Add tab change listener
             document.querySelectorAll('.crm-nav a').forEach(tab => {
                 tab.addEventListener('shown.bs.tab', event => {
                     const target = event.target.getAttribute('href');

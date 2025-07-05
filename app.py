@@ -3523,12 +3523,12 @@ def get_transaction_history():
     user_id = session["user_id"]
     db = get_db()
 
-    # Pobierz transakcje gdzie użytkownik był nadawcą lub odbiorcą
+    # Pobierz wszystkie transakcje związane z użytkownikiem
     transactions = db.execute("""
         SELECT t.*, 
                u_from.username AS from_username,
                u_to.username AS to_username,
-               b.id AS booking_id_ref
+               b.id AS booking_id
         FROM transactions t
         LEFT JOIN users u_from ON t.from_user_id = u_from.id
         LEFT JOIN users u_to ON t.to_user_id = u_to.id
@@ -3537,15 +3537,39 @@ def get_transaction_history():
         ORDER BY t.created_at DESC
     """, (user_id, user_id)).fetchall()
 
-    # Formatuj daty
+    # Formatuj dane transakcji
     formatted_transactions = []
     for t in transactions:
         t_dict = dict(t)
-        t_dict["created_at"] = t_dict["created_at"].strftime("%Y-%m-%d %H:%M") if t_dict["created_at"] else ""
+
+        # Obsłuż różne formaty daty
+        created_at = t_dict["created_at"]
+
+        if isinstance(created_at, datetime):
+            # Formatuj obiekt datetime
+            t_dict["created_at"] = created_at.strftime("%Y-%m-%d %H:%M")
+        elif isinstance(created_at, str):
+            # Jeśli to już string, spróbuj sparsować i sformatować
+            try:
+                # Spróbuj sparsować różne formaty daty
+                if 'T' in created_at:
+                    # Format ISO 8601 (np. z bazy danych)
+                    dt = datetime.fromisoformat(created_at)
+                else:
+                    # Inne formaty (np. z SQLite)
+                    dt = datetime.strptime(created_at, "%Y-%m-%d %H:%M:%S")
+
+                t_dict["created_at"] = dt.strftime("%Y-%m-%d %H:%M")
+            except (ValueError, TypeError):
+                # Jeśli parsowanie się nie uda, zostaw oryginalną wartość
+                pass
+        else:
+            # Dla innych typów (None, int) - przekonwertuj na string
+            t_dict["created_at"] = str(created_at) if created_at else ""
+
         formatted_transactions.append(t_dict)
 
     return jsonify(formatted_transactions)
-
 
 
 if __name__ == "__main__":
