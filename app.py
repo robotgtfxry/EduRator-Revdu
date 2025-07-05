@@ -689,11 +689,41 @@ def update_lesson_status():
         return jsonify({"error": "Invalid status value"}), 400
 
     try:
+        # Rozpocznij transakcję
+        db.execute("BEGIN TRANSACTION")
+
+        # Aktualizacja statusu rezerwacji
         db.execute("""
             UPDATE bookings 
             SET status = ?, cancellation_reason = ?
             WHERE id = ?
         """, (status, reason if status == "odwolana" else "", booking_id))
+
+        # Jeśli status to "przeprowadzona", przetwarzaj płatność
+        if status == "przeprowadzona":
+            # Ustal kwotę lekcji na podstawie trybu
+            lesson_price = booking["price_in_person"] if booking["lesson_mode"] == "in_person" else booking[
+                "price_online"]
+
+            # Aktualizuj saldo nauczyciela
+            db.execute("""
+                INSERT OR REPLACE INTO user_balances (user_id, balance)
+                VALUES (?, COALESCE((SELECT balance FROM user_balances WHERE user_id = ?), 0) + ?)
+            """, (booking["teacher_id"], booking["teacher_id"], lesson_price))
+
+            # Dodaj transakcję
+            db.execute("""
+                INSERT INTO transactions 
+                (from_user_id, to_user_id, booking_id, amount, payment_method, description)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (
+                None,  # System jako źródło płatności
+                booking["teacher_id"],
+                booking_id,
+                lesson_price,
+                'system',
+                f"Wypłata za lekcję #{booking_id}"
+            ))
 
         # Tworzenie powiadomienia
         if booking["teacher_id"] == user_id:
@@ -711,6 +741,7 @@ def update_lesson_status():
         db.commit()
         return jsonify({"success": True, "message": "Status lekcji zaktualizowany"})
     except Exception as e:
+        db.execute("ROLLBACK")
         return jsonify({"error": str(e)}), 500
 
 
@@ -2743,6 +2774,21 @@ def init_db():
             )
         """)
 
+        db.execute("""
+                    CREATE TABLE IF NOT EXISTS transactions (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        from_user_id INTEGER,
+                        to_user_id INTEGER,
+                        booking_id INTEGER,
+                        amount REAL NOT NULL,
+                        payment_method TEXT NOT NULL,
+                        description TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (from_user_id) REFERENCES users(id),
+                        FOREIGN KEY (to_user_id) REFERENCES users(id),
+                        FOREIGN KEY (booking_id) REFERENCES bookings(id)
+                    )
+                """)
 
         # Create admin user if not exists
         admin = db.execute("SELECT * FROM users WHERE username = 'admin'").fetchone()
@@ -3186,6 +3232,7 @@ def deposit():
 
     data = request.get_json()
     amount = data.get('amount')
+    method = data.get('method', 'unknown')
 
     if not amount or amount <= 0:
         return jsonify({"error": "Invalid amount"}), 400
@@ -3194,11 +3241,25 @@ def deposit():
     db = get_db()
 
     try:
+        # Aktualizuj saldo
         db.execute("""
-            UPDATE user_balances 
-            SET balance = balance + ? 
-            WHERE user_id = ?
-        """, (amount, user_id))
+            INSERT OR REPLACE INTO user_balances (user_id, balance)
+            VALUES (?, COALESCE((SELECT balance FROM user_balances WHERE user_id = ?), 0) + ?)
+        """, (user_id, user_id, amount))
+
+        # Dodaj rekord transakcji
+        db.execute("""
+            INSERT INTO transactions 
+            (from_user_id, to_user_id, amount, payment_method, description)
+            VALUES (?, ?, ?, ?, ?)
+        """, (
+            None,  # system
+            user_id,
+            amount,
+            method,
+            'Doładowanie konta'
+        ))
+
         db.commit()
         return jsonify({"success": True, "new_balance": get_balance(user_id)})
     except Exception as e:
@@ -3212,6 +3273,8 @@ def withdraw():
 
     data = request.get_json()
     amount = data.get('amount')
+    method = data.get('method', 'unknown')
+    account = data.get('account', '')
     user_id = session["user_id"]
 
     if not amount or amount <= 0:
@@ -3224,13 +3287,31 @@ def withdraw():
         return jsonify({"error": "Insufficient funds"}), 400
 
     try:
+        # Aktualizuj saldo
         db.execute("""
             UPDATE user_balances 
             SET balance = balance - ? 
             WHERE user_id = ?
         """, (amount, user_id))
+
+        # Dodaj rekord transakcji
+        db.execute("""
+            INSERT INTO transactions 
+            (from_user_id, to_user_id, amount, payment_method, description)
+            VALUES (?, ?, ?, ?, ?)
+        """, (
+            user_id,
+            None,  # system
+            amount,
+            method,
+            f'Wypłata środków na konto: {account}'
+        ))
+
         db.commit()
-        return jsonify({"success": True, "new_balance": get_balance(user_id)})
+        return jsonify({
+            "success": True,
+            "new_balance": get_balance(user_id)
+        })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -3270,6 +3351,20 @@ def process_booking_payment(booking_id, student_id, teacher_id, amount, lesson_m
             WHERE id = ?
         """, (price, booking_id))
 
+        # Dodaj rekord transakcji
+        db.execute("""
+            INSERT INTO transactions 
+            (from_user_id, to_user_id, booking_id, amount, payment_method, description)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (
+            student_id,
+            teacher_id,
+            booking_id,
+            price,
+            'saldo',
+            f'Płatność za lekcję #{booking_id}'
+        ))
+
         return True, ""
     except Exception as e:
         return False, str(e)
@@ -3296,21 +3391,60 @@ def update_lesson_payment():
     try:
         # Jeśli lekcja została odwołana, zwróć środki
         if status in ["cancelled", "odwolana"]:
+            # Zwróć środki uczniowi
             db.execute("""
                 UPDATE user_balances 
                 SET balance = balance + ? 
                 WHERE user_id = ?
             """, (booking["amount"], booking["student_id"]))
 
+            # Dodaj rekord transakcji (zwrot)
+            db.execute("""
+                INSERT INTO transactions 
+                (from_user_id, to_user_id, booking_id, amount, payment_method, description)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (
+                booking["teacher_id"],
+                booking["student_id"],
+                booking_id,
+                booking["amount"],
+                'system',
+                f'Zwrot za odwołaną lekcję #{booking_id}'
+            ))
+
         # Jeśli lekcja została zakończona, przelicz prowizję
         elif status in ["completed", "przeprowadzona"]:
             # 85% dla nauczyciela, 15% prowizji systemowej
             teacher_share = booking["amount"] * 0.85
+            commission = booking["amount"] - teacher_share
+
+            # Przelicz prowizję systemową
             db.execute("""
-                UPDATE user_balances 
-                SET balance = balance + ? 
-                WHERE user_id = ?
-            """, (teacher_share, booking["teacher_id"]))
+                INSERT INTO transactions 
+                (from_user_id, to_user_id, booking_id, amount, payment_method, description)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (
+                booking["teacher_id"],
+                None,  # system
+                booking_id,
+                commission,
+                'system',
+                f'Prowizja od lekcji #{booking_id}'
+            ))
+
+            # Wypłata dla nauczyciela
+            db.execute("""
+                INSERT INTO transactions 
+                (from_user_id, to_user_id, booking_id, amount, payment_method, description)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (
+                None,  # system
+                booking["teacher_id"],
+                booking_id,
+                teacher_share,
+                'system',
+                f'Wypłata za lekcję #{booking_id}'
+            ))
 
         db.commit()
         return jsonify({"success": True})
@@ -3330,6 +3464,7 @@ def add_balance():
         return redirect(url_for("login"))
 
     user_id = session["user_id"]
+    db = get_db()  # Dodaj tę linię - pobierz połączenie z bazą danych
     balance = get_balance(user_id)
 
     if request.method == "POST":
@@ -3340,12 +3475,25 @@ def add_balance():
                 flash("Kwota musi być dodatnia", "error")
                 return redirect(url_for("add_balance"))
 
-            db = get_db()
+            # Aktualizuj saldo
             db.execute("""
-                UPDATE user_balances 
-                SET balance = balance + ? 
-                WHERE user_id = ?
-            """, (amount, user_id))
+                INSERT OR REPLACE INTO user_balances (user_id, balance)
+                VALUES (?, COALESCE((SELECT balance FROM user_balances WHERE user_id = ?), 0) + ?)
+            """, (user_id, user_id, amount))
+
+            # Dodaj rekord transakcji
+            db.execute("""
+                INSERT INTO transactions 
+                (from_user_id, to_user_id, amount, payment_method, description)
+                VALUES (?, ?, ?, ?, ?)
+            """, (
+                None,  # system
+                user_id,
+                amount,
+                'strona',
+                'Doładowanie konta'
+            ))
+
             db.commit()
             flash(f"Doładowano konto o {amount:.2f} zł", "success")
             return redirect(url_for("add_balance"))
@@ -3353,7 +3501,52 @@ def add_balance():
             flash("Nieprawidłowa kwota", "error")
             return redirect(url_for("add_balance"))
 
-    return render_template("add_balance.html", balance=balance)
+    # Pobierz historię transakcji
+    transactions = db.execute("""
+        SELECT * FROM transactions 
+        WHERE to_user_id = ? 
+        ORDER BY created_at DESC
+        LIMIT 10
+    """, (user_id,)).fetchall()
+
+    return render_template("add_balance.html",
+                           balance=balance,
+                           transactions=transactions,
+                           format_datetime=format_datetime)
+
+
+@app.route("/api/transaction_history", methods=["GET"])
+def get_transaction_history():
+    if "user_id" not in session:
+        return jsonify({"error": "Not logged in"}), 401
+
+    user_id = session["user_id"]
+    db = get_db()
+
+    # Pobierz transakcje gdzie użytkownik był nadawcą lub odbiorcą
+    transactions = db.execute("""
+        SELECT t.*, 
+               u_from.username AS from_username,
+               u_to.username AS to_username,
+               b.id AS booking_id_ref
+        FROM transactions t
+        LEFT JOIN users u_from ON t.from_user_id = u_from.id
+        LEFT JOIN users u_to ON t.to_user_id = u_to.id
+        LEFT JOIN bookings b ON t.booking_id = b.id
+        WHERE t.from_user_id = ? OR t.to_user_id = ?
+        ORDER BY t.created_at DESC
+    """, (user_id, user_id)).fetchall()
+
+    # Formatuj daty
+    formatted_transactions = []
+    for t in transactions:
+        t_dict = dict(t)
+        t_dict["created_at"] = t_dict["created_at"].strftime("%Y-%m-%d %H:%M") if t_dict["created_at"] else ""
+        formatted_transactions.append(t_dict)
+
+    return jsonify(formatted_transactions)
+
+
 
 if __name__ == "__main__":
     init_db()

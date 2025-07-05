@@ -1,4 +1,3 @@
-<!--templates/crm.html-->
 <!DOCTYPE html>
 <html lang="pl">
 <head>
@@ -151,6 +150,12 @@
             margin-top: 20px;
             padding-top: 20px;
             border-top: 1px solid #eee;
+        }
+        .transaction-positive {
+            color: #28a745;
+        }
+        .transaction-negative {
+            color: #dc3545;
         }
     </style>
 </head>
@@ -343,7 +348,7 @@
 
                                 <div class="card">
                                     <div class="card-header">
-                                        <i class="fas fa-history me-2"></i> Ostatnie transakcje
+                                        <i class="fas fa-history me-2"></i> Historia transakcji
                                     </div>
                                     <div class="card-body">
                                         <ul id="transactions-list" class="list-group">
@@ -917,33 +922,74 @@
 
             // Load transactions
             function loadTransactions() {
-                // W rzeczywistości pobierane z endpointu /api/transactions
-                const transactions = [
-                    { id: 1, date: '2023-10-15', description: 'Lekcja matematyki', amount: 80.00 },
-                    { id: 2, date: '2023-10-10', description: 'Lekcja angielskiego', amount: 90.00 },
-                    { id: 3, date: '2023-10-05', description: 'Doładowanie konta', amount: 200.00 }
-                ];
+                fetch('/api/transaction_history')
+                    .then(response => response.json())
+                    .then(transactions => {
+                        const list = document.getElementById('transactions-list');
+                        list.innerHTML = '';
 
-                const list = document.getElementById('transactions-list');
-                list.innerHTML = '';
+                        if (transactions.error) {
+                            list.innerHTML = `<li class="list-group-item">${transactions.error}</li>`;
+                            return;
+                        }
 
-                transactions.forEach(transaction => {
-                    const isPositive = transaction.amount > 0;
-                    const item = document.createElement('li');
-                    item.className = 'list-group-item d-flex justify-content-between align-items-center';
+                        if (transactions.length === 0) {
+                            list.innerHTML = '<li class="list-group-item">Brak transakcji</li>';
+                            return;
+                        }
 
-                    item.innerHTML = `
-                        <div>
-                            <div>${transaction.description}</div>
-                            <small class="text-muted">${transaction.date}</small>
-                        </div>
-                        <span class="${isPositive ? 'text-success' : 'text-danger'}">
-                            ${isPositive ? '+' : ''}${transaction.amount.toFixed(2)} zł
-                        </span>
-                    `;
+                        transactions.forEach(transaction => {
+                            const isDeposit = transaction.to_user_id === parseInt("{{ user_id }}");
+                            const isWithdrawal = transaction.from_user_id === parseInt("{{ user_id }}");
+                            const isSystem = !transaction.from_user_id || !transaction.to_user_id;
 
-                    list.appendChild(item);
-                });
+                            let description = transaction.description;
+                            let amount = transaction.amount;
+                            let sign = '';
+                            let textClass = '';
+
+                            if (isDeposit) {
+                                sign = '+';
+                                textClass = 'transaction-positive';
+                            } else if (isWithdrawal) {
+                                sign = '-';
+                                textClass = 'transaction-negative';
+                            } else if (isSystem) {
+                                // Dla transakcji systemowych (prowizje)
+                                if (transaction.from_user_id === parseInt("{{ user_id }}")) {
+                                    sign = '-';
+                                    textClass = 'transaction-negative';
+                                } else {
+                                    sign = '+';
+                                    textClass = 'transaction-positive';
+                                }
+                            }
+
+                            // Formatuj datę
+                            const date = new Date(transaction.created_at);
+                            const dateStr = date.toLocaleDateString('pl-PL');
+
+                            const item = document.createElement('li');
+                            item.className = 'list-group-item d-flex justify-content-between align-items-center';
+
+                            item.innerHTML = `
+                                <div>
+                                    <div>${description}</div>
+                                    <small class="text-muted">${dateStr}</small>
+                                </div>
+                                <span class="${textClass} fw-bold">
+                                    ${sign}${amount.toFixed(2)} zł
+                                </span>
+                            `;
+
+                            list.appendChild(item);
+                        });
+                    })
+                    .catch(error => {
+                        console.error('Error loading transactions:', error);
+                        const list = document.getElementById('transactions-list');
+                        list.innerHTML = '<li class="list-group-item">Wystąpił błąd podczas ładowania historii transakcji</li>';
+                    });
             }
 
             // Handle withdrawal form
@@ -962,13 +1008,20 @@
                     fetch('/api/withdraw', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ amount: amount })
+                        body: JSON.stringify({
+                            amount: amount,
+                            method: 'przelew bankowy',
+                            account: account
+                        })
                     })
                     .then(response => response.json())
                     .then(data => {
                         if (data.success) {
                             alert(`Wniosek o wypłatę ${amount.toFixed(2)} zł został złożony!`);
+                            document.getElementById('withdraw-amount').value = '';
+                            document.getElementById('bank-account').value = '';
                             loadBalance();
+                            loadTransactions();
                         } else {
                             alert('Błąd podczas wypłaty: ' + (data.error || 'Spróbuj ponownie'));
                         }
@@ -996,7 +1049,18 @@
             loadBookings();
             loadReferralLinks();
             loadBalance();
-            loadTransactions();
+
+            // Dodajemy nasłuchiwanie na zmianę zakładek
+            document.querySelectorAll('.crm-nav a').forEach(tab => {
+                tab.addEventListener('shown.bs.tab', event => {
+                    const target = event.target.getAttribute('href');
+
+                    if (target === '#balance') {
+                        loadBalance();
+                        loadTransactions();
+                    }
+                });
+            });
         });
     </script>
 </body>
